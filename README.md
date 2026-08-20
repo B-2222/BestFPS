@@ -34,10 +34,10 @@ Expect it to feel slightly worse than the desktop build: browsers run the
 Compatibility (WebGL) renderer rather than Forward+, and mouse input goes
 through pointer lock. **Judge the movement feel on desktop**, not here.
 
-> **One-time repo setup:** GitHub Pages has to be switched on before that link
-> works — **Settings → Pages → Build and deployment → Source: "GitHub Actions"**.
-> A workflow cannot enable this for you. Until it is set, the build job passes
-> and the deploy job fails with a Pages error.
+> Already live — the first deploy succeeded, so nothing needs configuring. If
+> the link ever 404s, check **Settings → Pages → Build and deployment** is still
+> set to source **"GitHub Actions"**; that is the one setting a workflow cannot
+> set for itself.
 
 ### On desktop
 

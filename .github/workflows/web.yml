@@ -2,9 +2,9 @@ name: Web build
 
 # Builds the browser version and publishes it to GitHub Pages.
 #
-# One-time setup, which cannot be done from a workflow file:
-#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
-# Until that is set, the build job passes and the deploy job fails.
+# Requires Settings -> Pages -> Build and deployment -> Source: "GitHub Actions",
+# which is already set and is the one thing a workflow cannot set for itself.
+# If deploy ever starts failing with a Pages error, check that first.
 
 on:
   push:
