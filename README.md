@@ -47,6 +47,32 @@ through pointer lock. **Judge the movement feel on desktop**, not here.
 
 First launch takes a moment while Godot imports and builds its class cache.
 
+### If Godot crashes
+
+Godot 4 defaults to the **Forward+** renderer, which hard-requires a working
+Vulkan driver and dies rather than falling back when there isn't one. That is
+the most common reason it crashes on laptops, integrated GPUs and managed
+school machines.
+
+**This project is already set to the Compatibility (OpenGL) renderer** for
+exactly that reason, so pull the latest code before trying again — the fix is
+in `project.godot` and only applies once you have it.
+
+If it still crashes:
+
+1. **Launch Godot itself in OpenGL mode.** The Project Manager runs before it
+   reads any project setting, so a Vulkan crash there needs a command-line
+   flag. Windows: `Godot_v4.4.1-stable_win64.exe --rendering-driver opengl3`
+   (or add ` --rendering-driver opengl3` to the end of a shortcut's *Target*).
+   macOS/Linux: same flag from a terminal.
+2. **Update your graphics drivers**, then try Forward+ again.
+3. **Check where it dies** — on the Project Manager, on import, on opening the
+   3D scene, or on pressing F5. That distinction says which of the above is
+   the culprit.
+
+You do not need the editor to make progress. Every change is built and
+verified in CI, and the browser build above is always current.
+
 ## Controls
 
 | Input | Action |

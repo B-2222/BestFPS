@@ -28,9 +28,20 @@ var _mat_ramp: StandardMaterial3D
 var _mat_blocked: StandardMaterial3D
 var _mat_slide: StandardMaterial3D
 
+## Build the blockout inside the editor as well as at runtime.
+##
+## Off by default. Opening the scene otherwise generates ~90 nodes, a texture
+## and 40 Label3Ds every single time, which is pure cost on a machine that is
+## already struggling -- and none of it is saved to the scene anyway, since the
+## nodes have no owner. Turn it on only if you want to look at the level in the
+## viewport.
+@export var build_in_editor: bool = false
+
 var _geometry_root: Node3D
 
 func _ready() -> void:
+	if Engine.is_editor_hint() and not build_in_editor:
+		return
 	build()
 
 func build() -> void:

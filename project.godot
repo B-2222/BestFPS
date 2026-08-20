@@ -104,6 +104,24 @@ common/max_physics_steps_per_frame=16
 
 [rendering]
 
+; Compatibility (OpenGL), not Forward+ (Vulkan).
+;
+; Forward+ is Godot's default and it is the most common reason the editor
+; crashes on laptops, integrated GPUs and managed school machines -- it hard
+; requires a working Vulkan driver, and when that driver is missing or old the
+; editor dies rather than falling back. Compatibility runs on effectively any
+; GPU from the last decade, and is what the browser build already uses, so
+; desktop and web now render identically.
+;
+; We give up SSAO and some lighting quality, which this blockout does not use.
+; Revisit at Milestone 4 when visuals start to matter: change this one line
+; back to "forward_plus".
+;
+; NOTE: this must stay non-default or Godot drops it. The engine only
+; serialises settings that differ from the default, so an explicit
+; rendering_method="forward_plus" silently disappears on the next save.
+renderer/rendering_method="gl_compatibility"
+
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 textures/default_filters/anisotropic_filtering_level=3
 anti_aliasing/quality/msaa_3d=2
