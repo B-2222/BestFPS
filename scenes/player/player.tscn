@@ -1,0 +1,37 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/player/player_input.gd" id="2_input"]
+[ext_resource type="Script" path="res://scripts/player/camera_rig.gd" id="3_camera"]
+[ext_resource type="Resource" path="res://assets/config/player_default.tres" id="4_config"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_player"]
+radius = 0.4
+height = 1.8
+
+[node name="Player" type="CharacterBody3D" groups=["player"]]
+collision_layer = 2
+collision_mask = 7
+script = ExtResource("1_controller")
+config = ExtResource("4_config")
+
+[node name="Collider" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CylinderShape3D_player")
+
+[node name="Head" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
+
+[node name="AimPoint" type="Marker3D" parent="Head"]
+
+[node name="CameraArm" type="Node3D" parent="Head"]
+script = ExtResource("3_camera")
+
+[node name="Camera3D" type="Camera3D" parent="Head/CameraArm"]
+current = true
+fov = 90.0
+near = 0.05
+far = 500.0
+
+[node name="PlayerInput" type="Node" parent="."]
+script = ExtResource("2_input")

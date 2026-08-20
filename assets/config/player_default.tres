@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PlayerConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player_config.gd" id="1_config"]
+
+; Intentionally empty of overrides. The tuned defaults live in
+; scripts/player/player_config.gd so there is exactly one source of truth.
+; Change a value in the inspector (even while running) and save this file to
+; pin it; the diff then shows precisely which dial moved.
+[resource]
+script = ExtResource("1_config")
