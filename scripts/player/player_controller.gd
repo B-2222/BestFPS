@@ -30,6 +30,11 @@ const STEP_MARGIN := 0.001
 ## Extra height probed above max_step_height so an exactly-limit-height step
 ## is still reachable rather than sitting on a knife edge.
 const STEP_EPSILON := 0.005
+## Collision margin for the stand-up headroom check.
+const HEADROOM_MARGIN := 0.02
+## Floor on the hull height, purely to keep a mis-tuned config from producing a
+## zero-height collision shape.
+const MIN_HULL_HEIGHT := 0.2
 
 @export var config: PlayerConfig
 
@@ -259,13 +264,19 @@ func update_crouch(cmd_in: InputCommand) -> void:
 	elif is_crouched and can_stand_up():
 		is_crouched = false
 
-## The crouched capsule keeps its feet planted, so "is there room to stand?"
-## is exactly "can the crouched capsule sweep up by the height difference?".
+## The crouched hull keeps its feet planted, so "is there room to stand?" is
+## exactly "can the crouched hull sweep up by the height difference?".
+##
+## Uses an explicit margin for the same reason the stair probes do: at
+## test_move()'s 0.08 m default the player would refuse to stand with 8 cm of
+## clear air above their head. Small, but not zero -- standing up into a
+## ceiling by a hair leaves the physics server to depenetrate the body, which
+## reads as a lurch.
 func can_stand_up() -> bool:
 	var needed := config.standing_height - _current_height
 	if needed <= 0.001:
 		return true
-	return not test_move(global_transform, Vector3.UP * needed)
+	return not test_move(global_transform, Vector3.UP * needed, null, HEADROOM_MARGIN)
 
 func _update_height(delta: float) -> void:
 	var target_h := config.crouch_height if is_crouched else config.standing_height
@@ -277,8 +288,12 @@ func _update_height(delta: float) -> void:
 	_apply_height()
 
 func _apply_height() -> void:
-	_hull.height = maxf(_current_height, _hull.radius * 2.0)
-	# Capsules are centre-anchored; keep the feet at the body origin.
+	# Guard against a degenerate hull only. A cylinder has no height >= 2 *
+	# radius rule (that constraint belongs to capsules), so crouch_height is
+	# free to go below the hull diameter.
+	_hull.height = maxf(_current_height, MIN_HULL_HEIGHT)
+	# The hull is centre-anchored; keep the feet at the body origin so crouching
+	# lowers the head instead of lifting the feet.
 	collider.position.y = _hull.height * 0.5
 	head.position.y = _current_eye
 
@@ -350,7 +365,9 @@ func _step_up(delta: float) -> void:
 		return  # Ground continues at the same level; nothing was climbed.
 
 	global_position.y += rise + STEP_MARGIN
-	pending_step += rise
+	# Capped: if no camera rig is attached to drain this, an uncapped
+	# accumulator would hand a huge offset to whatever consumes it later.
+	pending_step = minf(pending_step + rise, config.max_step_height * 3.0)
 	stepped.emit(rise)
 
 ## Hand the accumulated stair pop to the camera, which owes us a smooth-out.

@@ -20,6 +20,7 @@ var _rows: Dictionary = {}
 var _graph: SpeedGraph
 var _hint: Label
 var _peak_speed: float = 0.0
+var _jump_count: int = 0
 
 func _ready() -> void:
 	layer = 10
@@ -28,8 +29,13 @@ func _ready() -> void:
 	if player == null:
 		push_warning("DebugHud: no node in group 'player'.")
 		return
-	player.jumped.connect(func() -> void: _flash("jump"))
-	player.landed.connect(func(speed: float) -> void: _set_row("last impact", "%.1f m/s" % speed))
+	player.jumped.connect(func() -> void:
+		_jump_count += 1
+		_set_row("jumps", str(_jump_count)))
+	player.landed.connect(func(speed: float) -> void:
+		_set_row("last impact", "%.1f m/s" % speed))
+	player.stepped.connect(func(height: float) -> void:
+		_set_row("last step", "%.2f m" % height))
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"debug_toggle"):
@@ -86,7 +92,7 @@ func _build_ui() -> void:
 	column.add_child(title)
 
 	for key in ["fps", "state", "speed", "peak", "vertical", "grounded",
-			"crouched", "height", "last impact", "position"]:
+			"crouched", "height", "jumps", "last impact", "last step", "position"]:
 		var row := HBoxContainer.new()
 		var name_label := Label.new()
 		name_label.text = key
@@ -129,9 +135,6 @@ func _set_row(key: String, value: String) -> void:
 	var label: Label = _rows.get(key)
 	if label != null:
 		label.text = value
-
-func _flash(key: String) -> void:
-	_set_row("state", key)
 
 # ---------------------------------------------------------------------------
 

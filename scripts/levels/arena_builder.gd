@@ -324,7 +324,7 @@ func _build_slide_slope() -> void:
 	_label("sprint + crouch downhill", Vector3(x, 1.6, z_start + 1.5), Color(0.75, 0.65, 0.95))
 
 ## 1.05 m of clearance: too low to stand, and wide enough to slide through at
-## speed if the slide keeps the capsule short for long enough.
+## speed if the slide keeps the hull short for long enough.
 func _build_crouch_tunnel() -> void:
 	var clearance := 1.05
 	var length := 14.0

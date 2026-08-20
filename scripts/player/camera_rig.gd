@@ -54,7 +54,7 @@ func _process(delta: float) -> void:
 	_roll = 0.0
 
 	_update_bob(speed, grounded and not sliding, delta)
-	offset += _bob_offset(speed)
+	offset += _apply_bob(speed)
 
 	_update_landing(delta)
 	offset.y -= _land_offset
@@ -83,7 +83,9 @@ func _update_bob(speed: float, active: bool, delta: float) -> void:
 	var target := 1.0 if active else 0.0
 	_bob_weight = lerpf(_bob_weight, target, 1.0 - exp(-delta * 10.0))
 
-func _bob_offset(speed: float) -> Vector3:
+## Returns the positional component and adds its own roll contribution to
+## [member _roll], which every layer in this file accumulates into.
+func _apply_bob(speed: float) -> Vector3:
 	if _bob_weight < 0.001:
 		return Vector3.ZERO
 	var amplitude := clampf(speed / maxf(_config.walk_speed, 0.001), 0.0, 1.4) * _bob_weight

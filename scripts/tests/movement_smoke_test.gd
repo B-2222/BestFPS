@@ -26,6 +26,7 @@ var _checks := 0
 var _peak_y := 0.0
 var _peak_speed := 0.0
 var _saw_slide_state := false
+var _airborne_ticks := 0
 
 func _initialize() -> void:
 	var arena: Node = load("res://scenes/levels/test_arena.tscn").instantiate()
@@ -146,6 +147,28 @@ func _build_plan() -> void:
 						"climbed to y=%.2f (top of the flight is 2.80)" % _peak_y),
 		},
 		{
+			# Descending is a separate failure mode from climbing: if
+			# floor_snap_length drops below max_step_height the player leaves
+			# the ground on every step and the descent turns into a rattle.
+			"name": "walks down the same staircase without bouncing",
+			"ticks": int(hz * 1.5),
+			"setup": func() -> void:
+				_place(Vector3(19.0, 3.0, -13.0), PI)
+				_airborne_ticks = 0,
+			"during": func(t: int) -> void:
+				_player.cmd.move_axis = Vector2(0, 1)
+				# Skip the settle: the phase spawns slightly above the landing.
+				if t > 40 and not _player.is_on_floor():
+					_airborne_ticks += 1,
+			"check": func() -> void:
+				_expect(_player.global_position.y < 0.1,
+						"reached the bottom (y=%.2f)" % _player.global_position.y)
+				var total := int(Engine.physics_ticks_per_second * 1.5) - 40
+				_expect(float(_airborne_ticks) / float(total) < 0.25,
+						"stayed grounded for %d of %d ticks of the descent"
+						% [total - _airborne_ticks, total]),
+		},
+		{
 			# Two assertions on purpose. "Did not rise" alone would also pass if
 			# the player never reached the ledge at all, which would make this
 			# test permanently green and permanently worthless.
@@ -169,14 +192,14 @@ func _build_plan() -> void:
 						"never rose above y=%.2f, so the 0.40 m ledge held" % _peak_y),
 		},
 		{
-			"name": "crouching shrinks the capsule",
+			"name": "crouching shrinks the hull",
 			"ticks": int(hz * 0.5),
 			"setup": func() -> void: _place(Vector3(0, 0.2, 0), 0.0),
 			"during": func(_t: int) -> void: _player.cmd.crouch_held = true,
 			"check": func() -> void:
 				_expect(_player.is_crouched, "crouch flag is set")
 				_expect_near(_player.get_current_height(), _config.crouch_height, 0.05,
-						"capsule height %.2f reached crouch height %.2f"
+						"hull height %.2f reached crouch height %.2f"
 						% [_player.get_current_height(), _config.crouch_height]),
 		},
 		{
@@ -185,7 +208,7 @@ func _build_plan() -> void:
 			"check": func() -> void:
 				_expect(not _player.is_crouched, "crouch released")
 				_expect_near(_player.get_current_height(), _config.standing_height, 0.05,
-						"capsule returned to %.2f m" % _config.standing_height),
+						"hull returned to %.2f m" % _config.standing_height),
 		},
 		{
 			"name": "sprint into crouch enters a slide and gains speed",
