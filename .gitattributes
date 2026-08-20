@@ -1,0 +1,23 @@
+# Godot text resources must stay LF or the editor rewrites the whole file
+# on save and every diff becomes unreadable.
+* text=auto eol=lf
+
+*.gd      text eol=lf
+*.tscn    text eol=lf
+*.tres    text eol=lf
+*.godot   text eol=lf
+*.import  text eol=lf
+*.cfg     text eol=lf
+*.md      text eol=lf
+
+# Binary assets: never try to merge or diff these.
+*.png  binary
+*.jpg  binary
+*.exr  binary
+*.hdr  binary
+*.ogg  binary
+*.wav  binary
+*.mp3  binary
+*.glb  binary
+*.fbx  binary
+*.blend binary

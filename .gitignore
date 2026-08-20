@@ -1,0 +1,37 @@
+# --- Godot 4 ---
+# Editor/engine cache. Regenerated on open; never commit it.
+.godot/
+# Legacy Godot 3 cache, kept so a stray import doesn't get committed.
+.import/
+
+# --- Exports / builds ---
+build/
+builds/
+export/
+*.pck
+*.zip
+*.x86_64
+*.exe
+*.dmg
+*.apk
+*.aab
+
+# Export presets can contain signing keystore paths and passwords.
+# Keep it local; CI supplies its own preset file (see docs/architecture.md).
+export_presets.cfg
+
+# --- Mono / C# (unused today, guarded in case we ever add a C# module) ---
+.mono/
+data_*/
+mono_crash.*.json
+bin/
+obj/
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
