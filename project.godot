@@ -98,3 +98,10 @@ lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 textures/default_filters/anisotropic_filtering_level=3
 anti_aliasing/quality/msaa_3d=2
 anti_aliasing/quality/screen_space_aa=1
+; Web has no Vulkan. Forward+ is desktop-only, so the browser build runs the
+; Compatibility renderer -- which is also why SSAO is guarded at runtime in
+; arena_builder.gd rather than just switched on.
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.web="gl_compatibility"
+; 4x MSAA is a real cost on integrated GPUs, which is most browser players.
+anti_aliasing/quality/msaa_3d.web=0

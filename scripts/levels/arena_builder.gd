@@ -173,9 +173,12 @@ func _build_environment() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 0.85
-	# Forward+ only. Harmless on the compatibility renderer, which just warns.
-	env.ssao_enabled = true
-	env.ssao_intensity = 1.0
+	# SSAO exists only on Forward+. The browser build runs the Compatibility
+	# renderer, which has no RenderingDevice -- ask for SSAO there and Godot
+	# just logs a warning every launch.
+	if RenderingServer.get_rendering_device() != null:
+		env.ssao_enabled = true
+		env.ssao_intensity = 1.0
 
 	var world_env := WorldEnvironment.new()
 	world_env.name = "WorldEnvironment"

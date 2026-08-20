@@ -11,16 +11,41 @@ extends Node
 
 var _controller: PlayerController
 
+## Set when we take the mouse, cleared by the next motion event.
+## See _unhandled_input() for why.
+var _discard_next_motion: bool = false
+
 func _ready() -> void:
 	_controller = get_node(controller_path) as PlayerController
-	# Headless (CI, smoke tests) has no window to capture the mouse into.
-	if DisplayServer.get_name() != "headless":
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+	# Capture the mouse on start on desktop only.
+	#
+	# Headless (CI, smoke tests) has no window to capture into. The browser is
+	# the subtler case: it refuses pointer lock outside a user gesture, but
+	# Godot's mouse mode still reports whatever we *asked* for -- so requesting
+	# capture here would make the game report itself as captured when the mouse
+	# is still free, which silently defeats both CapturePrompt and the guard in
+	# fill_command(). On web the click handler below does it instead, from
+	# inside a real gesture where the browser will actually grant it.
+	if DisplayServer.get_name() != "headless" and not OS.has_feature("web"):
+		_capture_mouse()
+
+func _capture_mouse() -> void:
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	_discard_next_motion = true
 
 func _unhandled_input(event: InputEvent) -> void:
 	var captured := Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
 
 	if event is InputEventMouseMotion and captured:
+		# Browsers deliver one large movementX/movementY immediately after
+		# pointer lock is granted -- the jump from wherever the cursor was to
+		# the lock origin. Fed straight into apply_look() that spins the view
+		# to the sky on the first click. Drop exactly one event; a real flick
+		# never depends on the single frame after capture.
+		if _discard_next_motion:
+			_discard_next_motion = false
+			return
 		# Applied immediately rather than deferred to the physics tick, so aim
 		# latency tracks the display refresh instead of the 120 Hz simulation.
 		_controller.apply_look((event as InputEventMouseMotion).relative)
@@ -32,7 +57,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed and not captured:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		_capture_mouse()
 		get_viewport().set_input_as_handled()
 		return
 

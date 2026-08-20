@@ -144,7 +144,39 @@ tuned at 120 Hz. If the tick rate changes, air control changes with it — and i
 M5 this becomes a correctness issue, because client and server must simulate at
 the same rate.
 
-## 8. The test level is an instrument
+## 8. The browser build has three hard constraints
+
+`.github/workflows/web.yml` exports a WebAssembly build on every push and
+publishes it to GitHub Pages, gated on the smoke test. Three constraints shaped
+how it is configured, and each one fails at *runtime* rather than at export,
+which is exactly the kind of thing to write down.
+
+**No threads.** A threaded Godot web build needs `SharedArrayBuffer`, which
+needs the page to be cross-origin isolated, which needs `Cross-Origin-Opener-Policy`
+and `Cross-Origin-Embedder-Policy` response headers. **GitHub Pages cannot send
+custom headers.** So the preset sets `variant/thread_support=false` and Godot
+links the `web_nothreads` template instead. Verified in a real browser over
+plain HTTP: `crossOriginIsolated === false` and the engine boots anyway. The
+workflow fails the build if `index.worker.js` ever appears, because that file
+means a threaded build slipped through and it would only break for players.
+
+**No Vulkan.** Forward+ is desktop-only, so `rendering_method.web` is
+`gl_compatibility`. Anything Forward+ exclusive has to be guarded rather than
+merely configured — SSAO is switched on only when
+`RenderingServer.get_rendering_device()` is non-null, or the Compatibility
+renderer logs a warning on every launch.
+
+**Pointer lock needs a user gesture.** The browser refuses the mouse capture
+that `PlayerInput._ready()` requests, and `fill_command()` deliberately returns
+empty input while the mouse is free — so without an explanation the game looks
+frozen. That is what `CapturePrompt` is for, and why it polls mouse mode rather
+than listening to our own input code: the browser also drops pointer lock on
+tab switch and focus loss, and none of that routes through us.
+
+The desktop build remains the reference for feel. WebGL and pointer lock both
+add latency, and Milestone 1 is being judged on latency.
+
+## 9. The test level is an instrument
 
 `arena_builder.gd` builds the blockout procedurally from a table of dimensions
 rather than from hand-placed nodes. The level exists to *measure* the controller

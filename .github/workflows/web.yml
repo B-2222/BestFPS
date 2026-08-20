@@ -1,0 +1,115 @@
+name: Web build
+
+# Builds the browser version and publishes it to GitHub Pages.
+#
+# One-time setup, which cannot be done from a workflow file:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+# Until that is set, the build job passes and the deploy job fails.
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race. Queue rather than cancel, so a finished build is
+# not thrown away by a newer push that may still fail.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: "4.4.1"
+
+jobs:
+  build:
+    name: Test and export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The editor is ~120 MB and the export templates ~1.2 GB. Downloading
+      # them on every push would dominate the run time.
+      - name: Cache Godot and export templates
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-bin
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-stable-v1
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot-bin
+          curl -fsSL -o /tmp/godot.zip "${BASE}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d /tmp/godot-unzip
+          mv "/tmp/godot-unzip/Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot-bin/godot
+          chmod +x ~/godot-bin/godot
+          curl -fsSL -o /tmp/templates.tpz "${BASE}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q /tmp/templates.tpz -d /tmp/tpz
+          mkdir -p ~/.local/share/godot/export_templates
+          mv /tmp/tpz/templates "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+
+      - name: Add Godot to PATH
+        run: echo "$HOME/godot-bin" >> "$GITHUB_PATH"
+
+      - name: Import project
+        # A fresh checkout has no .godot/, so the global class_name registry
+        # does not exist yet and every script using class_name fails to
+        # resolve. This step builds it and must run before anything loads a
+        # scene. It reports errors through its exit code unreliably, hence the
+        # explicit check that the cache actually appeared.
+        run: |
+          set -euo pipefail
+          godot --headless --import
+          test -f .godot/global_script_class_cache.cfg
+
+      - name: Movement smoke test
+        # Gates the deploy. 18 behavioural checks; exits non-zero on failure.
+        run: godot --headless --script scripts/tests/movement_smoke_test.gd
+
+      - name: Export web build
+        run: |
+          set -euo pipefail
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+          test -s build/web/index.wasm
+          test -s build/web/index.pck
+          # The no-threads template must be the one that got used: GitHub Pages
+          # cannot send the COOP/COEP headers that a threaded build needs, and
+          # a threaded build fails at runtime rather than at export.
+          if [ -f build/web/index.worker.js ]; then
+            echo "::error::Threaded web build detected. Set variant/thread_support=false in export_presets.cfg."
+            exit 1
+          fi
+
+      - name: Disable Jekyll
+        # Pages artifacts are served as-is, but this costs nothing and stops a
+        # future switch to branch-based Pages from eating files.
+        run: touch build/web/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    # Only the default branch publishes. Other branches still get built and
+    # smoke-tested above, which is the part that catches breakage.
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

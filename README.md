@@ -3,6 +3,10 @@
 A first person shooter built from scratch in Godot 4, prioritising movement feel,
 gunplay and bots — in that order.
 
+**[▶ Play it in your browser](https://b-2222.github.io/BestFPS/)**
+
+[![Web build](https://github.com/B-2222/BestFPS/actions/workflows/web.yml/badge.svg)](https://github.com/B-2222/BestFPS/actions/workflows/web.yml)
+
 **Current state: Milestone 1 — movement only.** No weapons, no enemies, no
 sound. That is deliberate; see [ROADMAP.md](ROADMAP.md).
 
@@ -15,6 +19,27 @@ not.*
 ---
 
 ## Running it
+
+### In a browser
+
+<https://b-2222.github.io/BestFPS/> — click the page to capture the mouse, then
+play. Needs WebGL 2, which every current desktop browser has. First load pulls
+about 11 MB (a 44 MB WebAssembly runtime, served compressed) and takes a few
+seconds.
+
+Every push rebuilds and redeploys it automatically, and the build only ships if
+the movement smoke test passes.
+
+Expect it to feel slightly worse than the desktop build: browsers run the
+Compatibility (WebGL) renderer rather than Forward+, and mouse input goes
+through pointer lock. **Judge the movement feel on desktop**, not here.
+
+> **One-time repo setup:** GitHub Pages has to be switched on before that link
+> works — **Settings → Pages → Build and deployment → Source: "GitHub Actions"**.
+> A workflow cannot enable this for you. Until it is set, the build job passes
+> and the deploy job fails with a Pages error.
+
+### On desktop
 
 1. Install **Godot 4.4** or newer (standard build, not .NET) — <https://godotengine.org/download>
 2. Open the project: `Import` → select `project.godot`
@@ -52,7 +77,7 @@ Open `assets/config/player_default.tres` in the inspector and edit values **whil
 the game is running**. Every number that decides how the player feels is in that
 one resource. Full guide: [docs/movement-tuning.md](docs/movement-tuning.md).
 
-## Tests
+## Tests and CI
 
 ```
 godot --headless --path . --script scripts/tests/movement_smoke_test.gd
@@ -65,6 +90,9 @@ Exits non-zero on failure, ready to wire into CI.
 Feel is not testable and has to be judged by hand. These cover the things that
 *are* objective and that break silently when a tuning value is edited.
 
+`.github/workflows/web.yml` runs the same test on every push and gates the web
+deploy on it, so a broken build never reaches the play link.
+
 ## Layout
 
 ```
@@ -72,6 +100,7 @@ scenes/   player and level scenes
 scripts/  core/ player/ levels/ ui/ tests/
 assets/   config/ (art lands here later)
 docs/     engine choice, architecture, tuning guide
+.github/  web build + Pages deploy workflow
 ```
 
 ## Documentation

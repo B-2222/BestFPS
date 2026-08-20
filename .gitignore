@@ -16,9 +16,10 @@ export/
 *.apk
 *.aab
 
-# Export presets can contain signing keystore paths and passwords.
-# Keep it local; CI supplies its own preset file (see docs/architecture.md).
-export_presets.cfg
+# export_presets.cfg IS committed: CI needs it to produce the web build, and
+# the Web preset holds no secrets. If a signed desktop or mobile preset is ever
+# added, its keystore path and password must go in a separate local file or an
+# Actions secret -- never in here.
 
 # --- Mono / C# (unused today, guarded in case we ever add a C# module) ---
 .mono/

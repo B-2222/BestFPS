@@ -41,8 +41,10 @@ that runs without a display and exits non-zero on failure. It exists this early
 because it is the thing GitHub Actions will run later, and because tuning values
 are exactly the kind of thing that breaks silently.
 
-CI itself is deliberately deferred — the test it would run already exists and can
-be wired up in an afternoon whenever you want it.
+CI is now wired up: `.github/workflows/web.yml` runs that test on every push and,
+on the default branch, exports a WebAssembly build and publishes it to GitHub
+Pages so the current state is playable from a link. The deploy is gated on the
+test, so a broken build never reaches the link.
 
 ---
 
