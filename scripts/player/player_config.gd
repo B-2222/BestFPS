@@ -76,9 +76,23 @@ extends Resource
 ## The other half of the same problem: players mash jump slightly early.
 @export_range(0.0, 0.4, 0.005) var jump_buffer_time: float = 0.12
 
-## Hold jump to keep hopping instead of re-pressing. This is a genuine game
-## identity decision, not a tuning value -- see docs/movement-tuning.md.
-@export var auto_bhop: bool = false
+## Hold jump to keep hopping instead of re-pressing. A game identity decision
+## rather than a tuning value; kept on after playtesting.
+@export var auto_bhop: bool = true
+
+## Hard ceiling on horizontal speed while airborne. 0 removes it.
+##
+## Quake-style strafe jumping accelerates without bound: measured at 23 m/s and
+## still climbing after 8 s of clean strafing, against a 9 m/s sprint. That is
+## authentic, and it breaks everything downstream -- an 80 m arena stops
+## containing the player, bots cannot contest someone moving at 5x walk speed,
+## and hit registration gets much harder the further a target moves per tick.
+##
+## 16 is about 1.8x sprint: high enough that good strafing is still clearly
+## rewarded (a medium turn tops out near 12.7 and never touches this), low
+## enough that the game stays bounded. Raise it for a faster, more
+## movement-driven game; set 0 for pure Quake.
+@export var max_air_speed: float = 16.0
 
 # ---------------------------------------------------------------------------
 @export_group("Crouch")

@@ -141,30 +141,50 @@ slide_enabled true   slide_slope_boost 1.6
 
 ---
 
-## Two identity questions, not tuning questions
+## Settled: the two identity questions
 
-Play both ways before answering. **F1 toggles slide and F2 toggles auto-bhop
-live in-game**, so you can A/B them without opening the editor — including in
-the browser build. The HUD shows the current state of both.
+Both were played and decided. **F1 toggles slide and F2 toggles auto-bhop live
+in-game** if you want to revisit either — including in the browser build. The
+HUD shows the current state of both.
 
-**Slide.** Implemented and on by default. It rewards reading terrain and gives
-elevation meaning. It also pushes toward a faster, more mobile game, which
-changes map design and makes bots harder to write. `slide_enabled = false`.
+**Slide: kept.** Rewards reading terrain and gives elevation meaning.
 
-**Bunny hopping.** `auto_bhop = false` today. Setting it true lets a player hold
-jump and keep speed indefinitely, which is a huge skill ceiling and a huge
-barrier to new players. It is the single biggest fork in this game's identity.
+**Bunny hopping: kept.** `auto_bhop = true`.
+
+### What bunny hopping actually does, measured
+
+On a bare plane, 8 seconds each, against a 9 m/s sprint:
+
+| Technique | Result |
+|---|---|
+| Sprint, no hopping | 9.0 m/s |
+| Holding W and jump, no strafing | 8.5 m/s — *slower* than sprinting |
+| Strafe jump, slow turn | 7.5 m/s — bad technique is punished |
+| Strafe jump, medium turn | 13.2 m/s |
+| Strafe jump, well-timed turn | 16.0 m/s (at the cap) |
+
+That spread is the point: holding jump gains nothing, and the reward scales
+with how well you pair the strafe key against the turn.
+
+**`max_air_speed` (16.0) is the dial that matters here.** The Quake air model
+has no natural ceiling — before the cap, sustained strafing measured 23 m/s and
+was still climbing. Unbounded is authentic, but at that speed an 80 m arena
+stops containing the player, bots cannot contest them, and hit registration
+gets much harder. 16 is about 1.8x sprint; a medium turn never reaches it.
+
+Raise it for a faster, more movement-driven game. Set it to `0` for pure
+uncapped Quake — but read the M3/M4/M5 notes in `ROADMAP.md` first, because
+that number is load-bearing for map scale, bot design and netcode.
 
 ---
 
-## What I need from you
+## Playtest outcome
 
-Rough notes are fine — "3 feels floaty", "stairs jolt" is plenty.
+Accepted as tuned: base speed, stopping, jump height (1.10 m ledge cleared
+comfortably) and camera bob all confirmed good. Slide and bunny hopping both
+kept. No input-swallowing bugs reported.
 
-1. Which of the ten tests felt wrong, and in which direction?
-2. Does the base speed feel right, or should everything be faster/slower?
-3. Is the camera bob invisible, pleasant, or annoying?
-4. Slide: keep, cut, or change?
-5. Auto-bhop: try it on for five minutes. Keep?
-6. Anything that felt like the game ignored an input you gave it? Those are bugs,
-   not tuning, and I want to hear about them first.
+These values are now the baseline weapons get built against in Milestone 2.
+They are not frozen — but changing walk speed or jump height after weapons exist
+means re-tuning every weapon's TTK against the new time-to-cross-a-room, so
+raise it now if anything still feels off.

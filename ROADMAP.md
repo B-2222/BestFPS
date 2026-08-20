@@ -4,14 +4,14 @@ Milestones are ordered by your pillars, with one deliberate exception explained
 in M2. Every milestone ends in something you can launch and play — if a
 milestone cannot be played, it is too big and needs splitting.
 
-**Current position: M1 in review.** Movement is implemented and testable; it is
-not signed off until you have played it and said so.
+**Current position: M1 signed off. M2 is next.** Movement was playtested and
+accepted; the two identity decisions it was blocking on are now made.
 
 | | Milestone | State |
 |---|---|---|
 | M0 | Foundations | Done |
-| M1 | Movement and feel | **Awaiting your feedback** |
-| M2 | Gunplay + networking spike | Not started |
+| M1 | Movement and feel | Done — signed off |
+| M2 | Gunplay + networking spike | **Next** |
 | M3 | Bots | Not started |
 | M4 | The arena | Not started |
 | M5 | Multiplayer | Not started |
@@ -65,17 +65,38 @@ with no weapons, no enemies and no objective.
 - A tuning HUD with a live speed graph
 - 18 headless behavioural checks, all passing
 
-**Exit criteria:**
-- [ ] You have played it and the movement feels good, or told me what to change
-- [x] Everything above runs with no errors and the smoke test passes
-- [ ] Tuning values settled well enough to build weapons against
+**Exit criteria — all met:**
+- [x] Played and accepted: speed, stopping, jump height and camera bob all
+      confirmed good as tuned
+- [x] Everything runs with no errors and the smoke test passes (22 checks)
+- [x] Tuning values settled well enough to build weapons against
 
 **What is deliberately absent:** weapons, health, enemies, sound, menus.
 
-**Open question for you:** slide is implemented and enabled, but whether it
-belongs is a question about the game's identity, not tuning. Play with it, then
-set `slide_enabled = false` and play without. Same for `auto_bhop`. See
-`docs/movement-tuning.md`.
+### Decisions made here, that everything downstream inherits
+
+**Slide: kept.** Elevation now has tactical meaning, and the map in M4 has to
+be built with slide lines in mind rather than having them retrofitted.
+
+**Bunny hopping: kept** (`auto_bhop = true`). This is the largest single
+decision in Milestone 1 and it reaches into three later milestones:
+
+- Strafe jumping accelerates without a natural ceiling in the Quake model.
+  Measured at 23 m/s and still climbing after 8 s of clean strafing, against a
+  9 m/s sprint. `max_air_speed` now caps it at 16 m/s (~1.8x sprint), which
+  ordinary play never touches — a medium-quality turn tops out near 13.
+- **M3 (bots)** must contest a player moving at up to 16 m/s. Bots run the same
+  movement code so they *can* bhop; whether they should, and at which
+  difficulty tiers, is a deliberate choice rather than an accident.
+- **M4 (the map)** has to be scaled for 16 m/s traversal, not 9 m/s. Sightlines
+  and rotation timings both change.
+- **M5 (netcode)** has to lag-compensate a target moving at 16 m/s. Speed
+  directly increases how far a target travels per tick, and so how much
+  rewind accuracy matters.
+
+Regression tests now pin all three properties: straight-line bhop must not beat
+sprinting, strafe jumping must beat it, and sustained strafe jumping must stay
+under the cap.
 
 ---
 

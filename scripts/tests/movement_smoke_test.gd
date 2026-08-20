@@ -28,9 +28,14 @@ var _peak_speed := 0.0
 var _saw_slide_state := false
 var _airborne_ticks := 0
 
+## Height of the bare test plane. Far enough above the arena that no blockout
+## geometry can reach it.
+const PLANE_Y := 500.0
+
 func _initialize() -> void:
 	var arena: Node = load("res://scenes/levels/test_arena.tscn").instantiate()
 	root.add_child(arena)
+	_build_open_plane(arena)
 
 	_player = arena.get_node("Player") as PlayerController
 	# Detach the device layer; this test is the input source now.
@@ -232,11 +237,84 @@ func _build_plan() -> void:
 						"slide peaked at %.2f m/s, above sprint speed %.2f"
 						% [_peak_speed, _config.sprint_speed]),
 		},
+		{
+			# Holding jump must not be free speed. If straight-line bhop beat
+			# sprinting there would be no reason ever to walk.
+			"name": "auto-bhop in a straight line does not beat sprinting",
+			"ticks": int(hz * 6.0),
+			"setup": func() -> void:
+				_place(Vector3(0.0, PLANE_Y + 0.2, 0.0), 0.0),
+			"during": func(t: int) -> void:
+				_player.cmd.move_axis = Vector2(0, 1)
+				_player.cmd.sprint_held = true
+				_player.cmd.jump_held = true
+				_player.cmd.jump_pressed = (t == 30),
+			"check": func() -> void:
+				var speed := _player.get_horizontal_speed()
+				_expect(speed > _config.walk_speed * 0.8,
+						"kept moving at %.2f m/s rather than grinding to a halt" % speed)
+				_expect(speed <= _config.sprint_speed + 0.5,
+						"%.2f m/s stayed at or below sprint speed %.2f"
+						% [speed, _config.sprint_speed]),
+		},
+		{
+			# Strafe jumping must still be worth learning...
+			"name": "strafe jumping accelerates past sprint speed",
+			"ticks": int(hz * 6.0),
+			"setup": func() -> void:
+				_place(Vector3(0.0, PLANE_Y + 0.2, 0.0), 0.0),
+			"during": func(t: int) -> void:
+				# Strafe and turn together -- that pairing is the technique.
+				_player.yaw -= 2.4 / hz
+				_player.rotation.y = _player.yaw
+				_player.cmd.move_axis = Vector2(1, 0)
+				_player.cmd.jump_held = true
+				_player.cmd.jump_pressed = (t == 30),
+			"check": func() -> void:
+				var speed := _player.get_horizontal_speed()
+				_expect(speed > _config.sprint_speed * 1.2,
+						"reached %.2f m/s, well past sprint speed %.2f"
+						% [speed, _config.sprint_speed]),
+		},
+		{
+			# ...but must not run away. The Quake air model has no natural
+			# ceiling; measured at 23 m/s and still climbing before the cap.
+			"name": "sustained strafe jumping stays under the air speed cap",
+			"ticks": int(hz * 14.0),
+			"setup": func() -> void:
+				_place(Vector3(0.0, PLANE_Y + 0.2, 0.0), 0.0)
+				_peak_speed = 0.0,
+			"during": func(t: int) -> void:
+				_player.yaw -= 2.4 / hz
+				_player.rotation.y = _player.yaw
+				_player.cmd.move_axis = Vector2(1, 0)
+				_player.cmd.jump_held = true
+				_player.cmd.jump_pressed = (t == 30)
+				_peak_speed = maxf(_peak_speed, _player.get_horizontal_speed()),
+			"check": func() -> void:
+				_expect(_peak_speed <= _config.max_air_speed + 0.01,
+						"peaked at %.2f m/s, held under the %.2f m/s cap"
+						% [_peak_speed, _config.max_air_speed]),
+		},
 	]
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+## Bunny hopping needs hundreds of metres of clear ground; the arena is 80 m
+## across and its walls would silently cap any speed measurement taken inside
+## it. So these phases run on their own plane instead.
+func _build_open_plane(parent: Node) -> void:
+	var body := StaticBody3D.new()
+	body.name = "OpenTestPlane"
+	body.position = Vector3(0.0, PLANE_Y - 1.0, 0.0)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(8000.0, 2.0, 8000.0)
+	shape.shape = box
+	body.add_child(shape)
+	parent.add_child(body)
 
 func _place(pos: Vector3, yaw: float) -> void:
 	_player.velocity = Vector3.ZERO

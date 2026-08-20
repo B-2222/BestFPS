@@ -25,6 +25,14 @@ func physics_update(cmd: InputCommand, delta: float) -> void:
 	p.velocity.y = maxf(p.velocity.y - p.config.gravity * delta, -p.config.terminal_velocity)
 	p.air_accelerate(p.wish_dir, p.get_target_speed(cmd), p.config.air_accel, delta)
 
+	# Bound the strafe-jump runaway. The Quake air-acceleration model has no
+	# natural ceiling, so without this a skilled player accelerates forever.
+	if p.config.max_air_speed > 0.0:
+		var horizontal := p.get_horizontal_velocity()
+		var speed := horizontal.length()
+		if speed > p.config.max_air_speed:
+			p.set_horizontal_velocity(horizontal * (p.config.max_air_speed / speed))
+
 	# Coyote jump: try_jump() owns the grace-window check.
 	if p.jump_buffer > 0.0:
 		p.try_jump()
