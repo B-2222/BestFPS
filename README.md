@@ -59,6 +59,8 @@ First launch takes a moment while Godot imports and builds its class cache.
 | `Shift` + `Ctrl` while moving | Slide |
 | `R` | Respawn at spawn point |
 | `F3` | Toggle the tuning HUD |
+| `F1` | Slide on/off (try both — see below) |
+| `F2` | Auto bunny-hop on/off (try both — see below) |
 | `Esc` | Release the mouse (click to recapture) |
 
 ## The test level

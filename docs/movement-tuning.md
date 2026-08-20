@@ -143,7 +143,9 @@ slide_enabled true   slide_slope_boost 1.6
 
 ## Two identity questions, not tuning questions
 
-Play both ways before answering.
+Play both ways before answering. **F1 toggles slide and F2 toggles auto-bhop
+live in-game**, so you can A/B them without opening the editor — including in
+the browser build. The HUD shows the current state of both.
 
 **Slide.** Implemented and on by default. It rewards reading terrain and gives
 elevation meaning. It also pushes toward a faster, more mobile game, which

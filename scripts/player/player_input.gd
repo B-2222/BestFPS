@@ -77,6 +77,18 @@ func _input(event: InputEvent) -> void:
 		_controller.respawn()
 		return
 
+	# Live toggles for the two Milestone 1 questions that are about the game's
+	# identity rather than tuning. They live on the config Resource, which
+	# normally means opening the editor -- and the browser build has no editor,
+	# so without these the questions cannot be answered by the person whose
+	# call it is. Runtime only; nothing is saved.
+	if event.is_action_pressed(&"toggle_slide"):
+		_controller.config.slide_enabled = not _controller.config.slide_enabled
+		return
+	if event.is_action_pressed(&"toggle_bhop"):
+		_controller.config.auto_bhop = not _controller.config.auto_bhop
+		return
+
 	if captured:
 		return
 

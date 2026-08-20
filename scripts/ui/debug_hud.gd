@@ -59,6 +59,9 @@ func _process(_delta: float) -> void:
 	_set_row("position", "%.1f, %.1f, %.1f" % [
 		player.global_position.x, player.global_position.y, player.global_position.z])
 
+	_set_row("slide [F1]", "ON" if player.config.slide_enabled else "off")
+	_set_row("auto-bhop [F2]", "ON" if player.config.auto_bhop else "off")
+
 	_graph.push_sample(speed, player.config.sprint_speed)
 
 # ---------------------------------------------------------------------------
@@ -91,7 +94,8 @@ func _build_ui() -> void:
 	column.add_child(title)
 
 	for key in ["fps", "state", "speed", "peak", "vertical", "grounded",
-			"crouched", "height", "jumps", "last impact", "last step", "position"]:
+			"crouched", "height", "jumps", "last impact", "last step", "position",
+			"slide [F1]", "auto-bhop [F2]"]:
 		var row := HBoxContainer.new()
 		var name_label := Label.new()
 		name_label.text = key
