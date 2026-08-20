@@ -105,7 +105,7 @@ trades heading for nothing.
 |---|---|---|
 | `view_bob_frequency` | 0.35 | Cycles **per metre**, not per second, so bob stays in step with the stride at every speed and stops dead when you do |
 | `view_bob_amount_v` | 0.045 | The single most common thing to overdo |
-| `view_land_dip_scale` | 0.013 | Impulse scales with impact speed |
+| `view_land_dip_scale` | 0.0040 | Impulse scales with impact speed. Calibrated so a jump dips ~5.5 cm and a 10 m fall ~17 cm |
 | `view_strafe_tilt_deg` | 1.1 | Under ~1.5° reads as weight; above, as a bug |
 | `view_step_smooth_time` | 0.10 | Raise if stairs jolt, lower if they feel laggy |
 | `mouse_sensitivity` | 0.0022 | Radians per pixel |

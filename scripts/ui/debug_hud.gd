@@ -40,7 +40,6 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"debug_toggle"):
 		_panel.visible = not _panel.visible
-		_graph.visible = _panel.visible
 		_hint.visible = _panel.visible
 
 func _process(_delta: float) -> void:
@@ -110,11 +109,11 @@ func _build_ui() -> void:
 		column.add_child(row)
 		_rows[key] = value_label
 
+	# Inside the panel rather than at a hardcoded offset below it: adding a row
+	# to the list above would otherwise silently overlap the graph.
 	_graph = SpeedGraph.new()
-	_graph.position = Vector2(16, 300)
-	_graph.custom_minimum_size = Vector2(240, 70)
-	_graph.size = Vector2(240, 70)
-	add_child(_graph)
+	_graph.custom_minimum_size = Vector2(220, 68)
+	column.add_child(_graph)
 
 	var crosshair := Crosshair.new()
 	crosshair.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -181,6 +180,11 @@ class SpeedGraph:
 ## is here so the eye has a fixed point to judge camera bob against.
 class Crosshair:
 	extends Control
+
+	func _ready() -> void:
+		# Anchored full-rect, so its centre moves with the window. Control does
+		# not redraw on resize by itself.
+		resized.connect(queue_redraw)
 
 	func _draw() -> void:
 		var centre := size * 0.5

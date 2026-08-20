@@ -24,9 +24,12 @@ func check_transitions(cmd: InputCommand) -> StringName:
 
 func physics_update(cmd: InputCommand, delta: float) -> void:
 	p.update_crouch(cmd)
-	# Friction first, then acceleration. Same order as Quake: it means a player
-	# holding a direction is never slowed by the friction they are overcoming,
-	# but a player releasing the keys stops promptly.
+	# Friction first, then acceleration -- Quake's order. At steady state the
+	# acceleration exactly restores what friction removed, so holding a
+	# direction still sits at target speed; release the keys and only friction
+	# is left, so the stop is prompt. Reversing the order would make top speed
+	# depend on the friction value, tangling two dials that need to stay
+	# independent.
 	p.apply_friction(delta)
 	p.accelerate(p.wish_dir, p.get_target_speed(cmd), p.config.ground_accel, delta)
 

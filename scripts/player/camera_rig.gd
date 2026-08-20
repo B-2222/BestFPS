@@ -12,6 +12,13 @@ extends Node3D
 ## Runs in _process, not _physics_process. View effects should be smooth at the
 ## display refresh rate, not quantised to the 120 Hz simulation.
 
+## Fixed substep for the landing spring, so its response does not vary with
+## frame rate.
+const SPRING_TIMESTEP := 1.0 / 240.0
+## Cap on how much spring time a single long frame may catch up, so a hitch or
+## a breakpoint does not spend thousands of substeps.
+const MAX_SPRING_CATCHUP := 0.25
+
 @onready var camera: Camera3D = $Camera3D
 
 var _controller: PlayerController
@@ -32,10 +39,10 @@ func _ready() -> void:
 		push_error("CameraRig: no PlayerController ancestor found.")
 		set_process(false)
 		return
-	_config = _controller.config
-	_fov = _config.view_fov_base
-	camera.fov = _fov
 	_controller.landed.connect(_on_landed)
+	# Config is deliberately not read here. Godot readies children before their
+	# parents, so PlayerController._ready() -- which resolves the fallback
+	# config -- has not run yet. Picked up on the first frame instead.
 
 func _find_controller() -> PlayerController:
 	var node := get_parent()
@@ -46,6 +53,13 @@ func _find_controller() -> PlayerController:
 	return null
 
 func _process(delta: float) -> void:
+	if _config == null:
+		_config = _controller.config
+		if _config == null:
+			return
+		_fov = _config.view_fov_base
+		camera.fov = _fov
+
 	var speed := _controller.get_horizontal_speed()
 	var grounded := _controller.is_on_floor()
 	var sliding := _controller.get_state_id() == &"slide"
@@ -105,15 +119,24 @@ func _apply_bob(speed: float) -> Vector3:
 func _on_landed(impact_speed: float) -> void:
 	_land_velocity += impact_speed * _config.view_land_dip_scale * 60.0
 
+## Damped spring rather than a tween: impulses from successive landings add up
+## naturally, and the return is asymmetric (fast down, settling up) the way real
+## weight is.
+##
+## Integrated at a fixed substep rather than straight off the render frame. An
+## explicit spring's response depends on its step size, and stepping it per
+## frame made the same landing dip about 20% deeper at 144 fps than at 60 --
+## a feel bug that only ever shows up on someone else's machine.
 func _update_landing(delta: float) -> void:
-	# Damped spring rather than a tween: impulses from successive landings add
-	# up naturally, and the return is asymmetric (fast down, settling up) the
-	# way real weight is.
-	var acceleration := -_config.view_land_dip_stiffness * _land_offset \
-			- _config.view_land_dip_damping * _land_velocity
-	_land_velocity += acceleration * delta
-	_land_offset = clampf(_land_offset + _land_velocity * delta,
-			-_config.view_land_dip_max, _config.view_land_dip_max)
+	var remaining := minf(delta, MAX_SPRING_CATCHUP)
+	while remaining > 0.0:
+		var step := minf(remaining, SPRING_TIMESTEP)
+		var acceleration := -_config.view_land_dip_stiffness * _land_offset \
+				- _config.view_land_dip_damping * _land_velocity
+		_land_velocity += acceleration * step
+		_land_offset = clampf(_land_offset + _land_velocity * step,
+				-_config.view_land_dip_max, _config.view_land_dip_max)
+		remaining -= step
 
 # --- stairs ----------------------------------------------------------------
 

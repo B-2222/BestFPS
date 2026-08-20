@@ -215,9 +215,10 @@ func apply_friction_value(friction: float, delta: float) -> void:
 		return
 	var control := maxf(speed, config.stop_speed)
 	var new_speed := maxf(speed - control * friction * delta, 0.0)
-	var scale := new_speed / speed
-	velocity.x *= scale
-	velocity.z *= scale
+	# Named `retained` rather than `scale`, which would shadow Node3D.scale.
+	var retained := new_speed / speed
+	velocity.x *= retained
+	velocity.z *= retained
 
 func try_jump() -> bool:
 	if jump_buffer <= 0.0:
@@ -384,9 +385,30 @@ func set_input_source(node: Node) -> void:
 	_input_source = node
 	_input_source_assigned = true
 
+## Return to the spawn point in a fully clean state.
+##
+## Resetting the view angles matters as much as the position: assigning
+## global_transform moves the body, but `yaw` would still hold the old heading,
+## and the next mouse movement would snap the camera back to where the player
+## was looking before they respawned.
 func respawn() -> void:
 	velocity = Vector3.ZERO
 	global_transform = _spawn_transform
+
+	yaw = _spawn_transform.basis.get_euler().y
+	pitch = 0.0
+	rotation.y = yaw
+	head.rotation.x = pitch
+	cmd.yaw = yaw
+	cmd.pitch = pitch
+
+	# Clear anything in flight, or a jump buffered a moment before respawning
+	# fires the instant the player reappears.
+	jump_buffer = 0.0
+	time_since_floor = 0.0
+	slide_cooldown_left = 0.0
+	pending_step = 0.0
+
 	is_crouched = false
 	_current_height = config.standing_height
 	_current_eye = config.standing_eye_height

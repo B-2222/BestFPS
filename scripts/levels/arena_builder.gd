@@ -61,14 +61,17 @@ func build() -> void:
 ## regular reference you cannot perceive speed, and "does this feel fast?" is
 ## the single most important question this level has to answer.
 func _build_materials() -> void:
-	var grid := _make_grid_texture(64, 2, Color(1, 1, 1), Color(0.55, 0.55, 0.58))
-	_mat_floor = _make_material(grid, Color(0.62, 0.63, 0.66))
-	_mat_wall = _make_material(grid, Color(0.34, 0.36, 0.42))
-	_mat_step = _make_material(grid, Color(0.90, 0.55, 0.20))
-	_mat_jump = _make_material(grid, Color(0.28, 0.55, 0.88))
-	_mat_ramp = _make_material(grid, Color(0.35, 0.72, 0.45))
-	_mat_blocked = _make_material(grid, Color(0.80, 0.27, 0.28))
-	_mat_slide = _make_material(grid, Color(0.62, 0.42, 0.85))
+	# Darker grid lines than you would expect: they are the only cue for speed
+	# and distance, and a low-contrast grid washes out entirely under sky
+	# ambient once the tonemapper has had its way.
+	var grid := _make_grid_texture(64, 2, Color(1, 1, 1), Color(0.34, 0.35, 0.40))
+	_mat_floor = _make_material(grid, Color(0.40, 0.41, 0.44))
+	_mat_wall = _make_material(grid, Color(0.26, 0.28, 0.34))
+	_mat_step = _make_material(grid, Color(0.78, 0.46, 0.16))
+	_mat_jump = _make_material(grid, Color(0.22, 0.44, 0.74))
+	_mat_ramp = _make_material(grid, Color(0.28, 0.60, 0.37))
+	_mat_blocked = _make_material(grid, Color(0.68, 0.22, 0.24))
+	_mat_slide = _make_material(grid, Color(0.50, 0.34, 0.72))
 
 func _make_grid_texture(size: int, line_px: int, base: Color, line: Color) -> ImageTexture:
 	var img := Image.create(size, size, true, Image.FORMAT_RGBA8)
@@ -123,19 +126,30 @@ func _box(box_name: String, size: Vector3, pos: Vector3, mat: Material,
 	_geometry_root.add_child(body)
 	return body
 
-func _label(text: String, pos: Vector3, color: Color = Color(1, 1, 1)) -> Label3D:
+## Dimension annotation. Sized to be readable at 5-15 m without covering the
+## thing it is annotating -- roughly 17 cm per character, against a player who
+## is 1.8 m tall.
+func _label(text: String, pos: Vector3, color: Color = Color(1, 1, 1),
+		size_scale: float = 1.0) -> Label3D:
 	var label := Label3D.new()
 	label.text = text
 	label.position = pos
-	label.font_size = 48
-	label.pixel_size = 0.008
+	label.font_size = 40
+	label.pixel_size = 0.0042 * size_scale
 	label.modulate = color
-	label.outline_size = 12
+	label.outline_size = 10
 	label.outline_modulate = Color(0, 0, 0, 0.85)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.shaded = false
+	label.fixed_size = false
+	label.no_depth_test = false
 	_geometry_root.add_child(label)
 	return label
+
+## Section heading. Larger than a dimension label so the eye can find sections
+## from across the arena.
+func _heading(text: String, pos: Vector3, color: Color = Color(1, 1, 1)) -> Label3D:
+	return _label(text, pos, color, 1.8)
 
 # ---------------------------------------------------------------------------
 # Sections
@@ -155,10 +169,13 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.55
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 0.85
+	# Forward+ only. Harmless on the compatibility renderer, which just warns.
 	env.ssao_enabled = true
-	env.ssao_intensity = 1.2
+	env.ssao_intensity = 1.0
 
 	var world_env := WorldEnvironment.new()
 	world_env.name = "WorldEnvironment"
@@ -168,7 +185,7 @@ func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = Vector3(-52.0, -38.0, 0.0)
-	sun.light_energy = 1.1
+	sun.light_energy = 1.0
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 120.0
 	_geometry_root.add_child(sun)
@@ -188,7 +205,7 @@ func _build_shell() -> void:
 ## A measured straight lane. Sprint it and count: at 9 m/s the 30 m mark should
 ## arrive in about 3.3 s. This is how you tell "fast" from "feels fast".
 func _build_distance_lane() -> void:
-	_label("SPRINT LANE ->", Vector3(0, 2.6, -3.0), Color(1, 0.9, 0.5))
+	_heading("SPRINT LANE ->", Vector3(0, 2.6, -3.0), Color(1, 0.9, 0.5))
 	for metres in [5, 10, 15, 20, 25, 30]:
 		var z := -float(metres)
 		_box("LaneMark%d" % metres, Vector3(3.0, 0.04, 0.2),
@@ -198,7 +215,7 @@ func _build_distance_lane() -> void:
 ## Single ledges bracketing max_step_height (0.35 m by default). 0.20-0.35
 ## should be walked over without a jump; 0.40 should stop you dead.
 func _build_step_ledges() -> void:
-	_label("STEP-UP LIMIT", Vector3(8.0, 2.6, 5.0), Color(1, 0.75, 0.4))
+	_heading("STEP-UP LIMIT", Vector3(8.0, 2.6, 5.0), Color(1, 0.75, 0.4))
 	var heights := [0.20, 0.30, 0.35, 0.40]
 	for i in heights.size():
 		var h: float = heights[i]
@@ -212,7 +229,7 @@ func _build_step_ledges() -> void:
 ## 0.45 m flight is deliberately impossible -- both are boundary tests, and
 ## boundaries are where stair code breaks.
 func _build_staircases() -> void:
-	_label("STAIRCASES", Vector3(15.0, 3.6, -4.0), Color(1, 0.75, 0.4))
+	_heading("STAIRCASES", Vector3(15.0, 3.6, -4.0), Color(1, 0.75, 0.4))
 	var rises := [0.15, 0.25, 0.35, 0.45]
 	var run := 0.4
 	var steps := 8
@@ -239,7 +256,7 @@ func _build_staircases() -> void:
 ## If 1.10 is comfortably clearable and 1.40 is not, gravity and jump_velocity
 ## agree with each other.
 func _build_jump_heights() -> void:
-	_label("JUMP HEIGHT", Vector3(30.0, 3.2, -6.0), Color(0.6, 0.8, 1))
+	_heading("JUMP HEIGHT", Vector3(30.0, 3.2, -6.0), Color(0.6, 0.8, 1))
 	var heights := [0.60, 0.90, 1.10, 1.25, 1.40]
 	for i in heights.size():
 		var h: float = heights[i]
@@ -252,7 +269,7 @@ func _build_jump_heights() -> void:
 func _build_gap_walkway() -> void:
 	var y := 2.0
 	var width := 3.5
-	_label("GAP JUMPS", Vector3(6.0, 4.6, 16.0), Color(0.6, 0.8, 1))
+	_heading("GAP JUMPS", Vector3(6.0, 4.6, 16.0), Color(0.6, 0.8, 1))
 
 	# Access stairs up to the walkway.
 	for s in 6:
@@ -273,7 +290,7 @@ func _build_gap_walkway() -> void:
 ## 15 / 30 / 45 degrees are walkable; 55 is past floor_max_angle and must
 ## reject the player rather than letting them creep up it.
 func _build_ramps() -> void:
-	_label("RAMPS", Vector3(-14.0, 3.6, 14.0), Color(0.5, 0.9, 0.6))
+	_heading("RAMPS", Vector3(-14.0, 3.6, 14.0), Color(0.5, 0.9, 0.6))
 	var specs := [
 		{"angle": 15.0, "length": 10.0},
 		{"angle": 30.0, "length": 8.0},
@@ -320,7 +337,7 @@ func _build_slide_slope() -> void:
 			_mat_slide, Vector3(angle, 0.0, 0.0))
 	_box("SlideTop", Vector3(7.0, rise, 5.0),
 			Vector3(x, rise * 0.5, z_start - run - 2.5), _mat_slide)
-	_label("SLIDE SLOPE %.0f deg" % angle, Vector3(x, 2.4, z_start + 1.5), Color(0.8, 0.7, 1))
+	_heading("SLIDE SLOPE %.0f deg" % angle, Vector3(x, 2.4, z_start + 1.5), Color(0.8, 0.7, 1))
 	_label("sprint + crouch downhill", Vector3(x, 1.6, z_start + 1.5), Color(0.75, 0.65, 0.95))
 
 ## 1.05 m of clearance: too low to stand, and wide enough to slide through at
@@ -333,13 +350,13 @@ func _build_crouch_tunnel() -> void:
 	_box("TunnelRoof", Vector3(length, 0.5, 4.0), Vector3(x, clearance + 0.25, z), _mat_slide)
 	_box("TunnelWallA", Vector3(length, 2.4, 0.5), Vector3(x, 1.2, z - 2.25), _mat_slide)
 	_box("TunnelWallB", Vector3(length, 2.4, 0.5), Vector3(x, 1.2, z + 2.25), _mat_slide)
-	_label("CROUCH TUNNEL %.2f m" % clearance, Vector3(x + length * 0.5 + 2.0, 2.2, z),
+	_heading("CROUCH TUNNEL %.2f m" % clearance, Vector3(x + length * 0.5 + 2.0, 2.2, z),
 			Color(0.8, 0.7, 1))
 
 ## Something to strafe around. Tight enough spacing that turning while keeping
 ## speed actually costs something.
 func _build_pillars() -> void:
-	_label("STRAFE COURSE", Vector3(-16.0, 3.6, -10.0), Color(1, 1, 1))
+	_heading("STRAFE COURSE", Vector3(-16.0, 3.6, -10.0), Color(1, 1, 1))
 	var offsets := [
 		Vector2(-10, -8), Vector2(-14, -12), Vector2(-18, -8), Vector2(-22, -13),
 		Vector2(-12, -18), Vector2(-17, -21), Vector2(-23, -19), Vector2(-27, -24),

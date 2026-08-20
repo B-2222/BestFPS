@@ -175,12 +175,18 @@ extends Resource
 @export var view_bob_amount_h: float = 0.030
 @export var view_bob_roll_deg: float = 0.35
 
-## Landing dip, as a critically-ish damped spring. Impulse scales with impact
-## speed so a small hop barely registers and a long fall lands hard.
-@export var view_land_dip_scale: float = 0.013
+## Landing dip, as an underdamped spring. Impulse scales with impact speed so a
+## small hop barely registers and a long fall lands hard.
+##
+## Calibrated, not guessed: at these values an ordinary jump (7 m/s impact)
+## dips about 5.5 cm, a 2 m drop about 7 cm, and a 10 m fall about 17 cm --
+## which leaves the clamp as a genuine safety net rather than something every
+## landing hits. Raising the scale much past 0.006 makes routine jumping feel
+## like the camera is slamming into the floor.
+@export var view_land_dip_scale: float = 0.0040
 @export var view_land_dip_stiffness: float = 170.0
 @export var view_land_dip_damping: float = 18.0
-@export var view_land_dip_max: float = 0.22
+@export var view_land_dip_max: float = 0.18
 
 ## Camera roll when strafing. Under ~1.5 deg it reads as weight; above that it
 ## reads as a bug.

@@ -56,9 +56,15 @@ func update(cmd: InputCommand, delta: float) -> void:
 	if current == null:
 		return
 	var guard := 0
-	while guard < MAX_CHAINED_TRANSITIONS:
+	while true:
 		var next: StringName = current.check_transitions(cmd)
 		if next == &"" or next == current.id:
+			break
+		if guard >= MAX_CHAINED_TRANSITIONS:
+			# Say so rather than silently settling on whichever state happened
+			# to be current when we gave up. A chain this deep means two states
+			# disagree about the same condition, which is a bug worth seeing.
+			push_warning("StateMachine: transitions did not settle at '%s'." % current.id)
 			break
 		transition_to(next)
 		guard += 1

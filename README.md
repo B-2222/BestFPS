@@ -6,6 +6,12 @@ gunplay and bots — in that order.
 **Current state: Milestone 1 — movement only.** No weapons, no enemies, no
 sound. That is deliberate; see [ROADMAP.md](ROADMAP.md).
 
+![The movement test arena](docs/images/test-arena.png)
+
+*The test blockout. Every obstacle is labelled with its dimension — here the
+0.25 m and 0.35 m staircases are climbable and the 0.45 m one is deliberately
+not.*
+
 ---
 
 ## Running it
