@@ -33,5 +33,5 @@ fov = 90.0
 near = 0.05
 far = 500.0
 
-[node name="PlayerInput" type="Node" parent="."]
+[node name="PlayerInput" type="Node" parent="." groups=["player_input"]]
 script = ExtResource("2_input")

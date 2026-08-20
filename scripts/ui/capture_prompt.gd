@@ -1,62 +1,93 @@
 class_name CapturePrompt
 extends CanvasLayer
-## "Click to play" overlay, shown whenever the mouse is not captured.
+## A small hint, not a gate.
 ##
-## This is not decoration -- the browser build does not work without it.
-## Pointer lock can only be requested from a user gesture, so the capture
-## attempt in [PlayerInput]'s _ready() is refused on the web and the game sits
-## there looking frozen: mouse look does nothing and [method
-## PlayerInput.fill_command] deliberately returns empty input while the mouse is
-## free. Telling the player to click is the whole fix.
+## The game is live and playable the moment the page finishes loading -- WASD
+## works immediately (see [method PlayerInput.fill_command], which gates on
+## window focus rather than mouse capture). The only thing a click adds is
+## mouse look, because no browser will hand over pointer lock without a user
+## gesture. So this says so quietly in a corner instead of blocking the view
+## with a "click to play" wall.
 ##
-## It earns its place on desktop too, as the thing you see after pressing Esc.
+## It hides itself the moment the mouse is actually captured, and shrinks to a
+## single line once the player has clicked at all, so a browser that refuses
+## pointer lock never leaves a permanent obstruction on screen.
 
-const CONTROLS := "WASD move     Space jump     Shift sprint     Ctrl crouch\n" \
-		+ "sprint + crouch = slide     R respawn     F3 stats     Esc release mouse"
+## Seconds between checks. On the web each poll crosses into JavaScript, and
+## nothing here needs to react within a single frame.
+const POLL_INTERVAL := 0.2
 
-var _root: Control
-var _shown: bool = true
+const CONTROLS := "WASD move     Space jump     Shift sprint     Ctrl crouch (sprint + crouch = slide)" \
+		+ "\nR respawn     F3 stats     Esc release mouse"
+
+var _input_source: PlayerInput
+var _card: PanelContainer
+var _headline: Label
+var _detail: Label
+var _poll_timer: float = 0.0
 
 func _ready() -> void:
 	layer = 20
+	_input_source = get_tree().get_first_node_in_group(&"player_input") as PlayerInput
 	_build()
+	_refresh()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Polled rather than driven by a signal: mouse mode also changes from
-	# outside the game (the browser dropping pointer lock on tab switch, the
-	# window losing focus), and none of that routes through our input code.
-	var want := Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED
-	if want != _shown:
-		_shown = want
-		_root.visible = want
+	# outside the game -- the browser dropping pointer lock on a tab switch, the
+	# window losing focus -- and none of that routes through our input code.
+	_poll_timer -= delta
+	if _poll_timer > 0.0:
+		return
+	_poll_timer = POLL_INTERVAL
+	_refresh()
+
+func _refresh() -> void:
+	if _input_source == null:
+		_card.visible = false
+		return
+
+	if _input_source.is_mouse_captured():
+		_card.visible = false
+		return
+
+	_card.visible = true
+	if _input_source.capture_attempts == 0:
+		_headline.text = "Click anywhere for mouse look"
+		_detail.text = CONTROLS
+		_detail.visible = true
+	else:
+		# They have already clicked and the browser did not grant pointer lock.
+		# Shrink out of the way rather than nagging over the top of the game.
+		_headline.text = "Mouse look unavailable — keyboard still works. Click again to retry."
+		_detail.visible = false
 
 func _build() -> void:
-	_root = Control.new()
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_root)
+	_card = PanelContainer.new()
+	_card.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_card.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_card.offset_bottom = -56
+	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.04, 0.06, 0.72)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(dim)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.06, 0.08, 0.82)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(14)
+	_card.add_theme_stylebox_override("panel", style)
+	add_child(_card)
 
 	var column := VBoxContainer.new()
-	column.set_anchors_preset(Control.PRESET_CENTER)
-	# A centred container still has to be pulled back by half its own size.
-	column.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	column.grow_vertical = Control.GROW_DIRECTION_BOTH
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_theme_constant_override("separation", 14)
+	column.add_theme_constant_override("separation", 8)
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(column)
+	_card.add_child(column)
 
-	column.add_child(_make_label("BestFPS", 44, Color(1, 1, 1)))
-	column.add_child(_make_label("Milestone 1 — movement test", 16,
-			Color(1.0, 0.78, 0.35)))
-	column.add_child(_make_label("Click to play", 26, Color(0.85, 0.92, 1.0)))
-	column.add_child(_make_label(CONTROLS, 14, Color(1, 1, 1, 0.62)))
+	_headline = _make_label("", 20, Color(0.88, 0.94, 1.0))
+	column.add_child(_headline)
+
+	_detail = _make_label(CONTROLS, 13, Color(1, 1, 1, 0.62))
+	column.add_child(_detail)
 
 func _make_label(text: String, size: int, color: Color) -> Label:
 	var label := Label.new()
