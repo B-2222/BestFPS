@@ -34,6 +34,7 @@ const PLANE_Y := 500.0
 
 func _initialize() -> void:
 	var arena: Node = load("res://scenes/levels/test_arena.tscn").instantiate()
+	_disable_bots(arena)
 	root.add_child(arena)
 	_build_open_plane(arena)
 
@@ -48,6 +49,25 @@ func _initialize() -> void:
 
 	_build_plan()
 	print("\n=== movement smoke test (%d phases) ===\n" % _plan.size())
+
+## Bots are switched off for the movement and combat suites.
+##
+## They wander, shoot, make noise and get in the way, and any of that landing in
+## a firing lane turns a measurement into a coin flip -- a bot stepping through
+## a trace is indistinguishable from a falloff bug, and one that kills the
+## player freezes the movement phases outright.
+##
+## The whole node is removed rather than having its count zeroed, because
+## BotDirector reads the roster back out of the GameSettings autoload on ready.
+## Autoloads *do* exist under `--script`, contrary to what a couple of comments
+## in this project used to claim, so a zeroed count is overwritten by whatever
+## is in the developer's saved settings a moment later.
+static func _disable_bots(arena: Node) -> void:
+	var director: Node = arena.get_node_or_null(^"BotDirector")
+	if director == null:
+		return
+	arena.remove_child(director)
+	director.free()
 
 func _physics_process(delta: float) -> bool:
 	if _phase >= _plan.size():
