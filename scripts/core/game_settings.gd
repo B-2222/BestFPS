@@ -12,6 +12,7 @@ extends Node
 
 signal binding_changed(action: StringName)
 signal sensitivity_changed(scale: float)
+signal volume_changed(linear: float)
 
 const SETTINGS_PATH := "user://settings.cfg"
 
@@ -38,6 +39,8 @@ const REBINDABLE: Array = [
 ## Multiplier on the tuned sensitivity in PlayerConfig, so the design default
 ## stays put and the player's preference layers on top of it.
 var mouse_sensitivity_scale: float = 1.0
+## Master output, 0..1 linear.
+var master_volume: float = 0.7
 
 var _defaults: Dictionary = {}
 
@@ -46,6 +49,7 @@ func _ready() -> void:
 		var action: StringName = entry[0]
 		if InputMap.has_action(action):
 			_defaults[action] = InputMap.action_get_events(action).duplicate()
+	_apply_volume()
 	load_settings()
 
 # --- bindings --------------------------------------------------------------
@@ -71,7 +75,22 @@ func reset_all() -> void:
 		reset_action(action)
 	mouse_sensitivity_scale = 1.0
 	sensitivity_changed.emit(mouse_sensitivity_scale)
+	set_master_volume(0.7)
+
+func set_master_volume(value: float) -> void:
+	master_volume = clampf(value, 0.0, 1.0)
+	_apply_volume()
+	volume_changed.emit(master_volume)
 	save_settings()
+
+func _apply_volume() -> void:
+	# linear_to_db(0) is -inf, which Godot accepts but which reads badly in a
+	# debugger; mute explicitly instead.
+	if master_volume <= 0.001:
+		AudioServer.set_bus_mute(0, true)
+		return
+	AudioServer.set_bus_mute(0, false)
+	AudioServer.set_bus_volume_db(0, linear_to_db(master_volume))
 
 func set_sensitivity_scale(value: float) -> void:
 	mouse_sensitivity_scale = clampf(value, 0.1, 5.0)
@@ -118,6 +137,7 @@ static func is_bindable(event: InputEvent) -> bool:
 func save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("input", "sensitivity_scale", mouse_sensitivity_scale)
+	config.set_value("audio", "master_volume", master_volume)
 	for entry in REBINDABLE:
 		var action: StringName = entry[0]
 		if not InputMap.has_action(action):
@@ -135,6 +155,8 @@ func load_settings() -> void:
 	if config.load(SETTINGS_PATH) != OK:
 		return  # No settings yet; project defaults stand.
 	mouse_sensitivity_scale = float(config.get_value("input", "sensitivity_scale", 1.0))
+	master_volume = float(config.get_value("audio", "master_volume", 0.7))
+	_apply_volume()
 	for entry in REBINDABLE:
 		var action: StringName = entry[0]
 		var encoded = config.get_value("bindings", String(action), null)

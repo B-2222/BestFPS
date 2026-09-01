@@ -34,3 +34,4 @@ equip_seconds = 0.60
 move_speed_multiplier = 0.86
 aim_move_multiplier = 0.32
 aim_fov_reduction = 45.0
+has_scope = true

@@ -172,6 +172,5 @@ func _update_fov(speed: float, sliding: bool, delta: float) -> void:
 	# Aiming pulls the FOV in. Subtracted last so it wins over the speed
 	# bonus -- otherwise sprinting while aiming would widen the sight picture,
 	# which is the opposite of what the player asked for.
-	if _controller.is_aiming:
-		target -= _controller.aim_fov_reduction
+	target -= _controller.aim_fov_reduction * _controller.aim_blend
 	_fov = lerpf(_fov, target, 1.0 - exp(-delta * _config.view_fov_blend))

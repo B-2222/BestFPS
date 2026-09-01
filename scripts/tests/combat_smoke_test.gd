@@ -110,6 +110,28 @@ func _stand_at_firing_line() -> void:
 	_player.velocity = Vector3.ZERO
 	_player.global_position = Vector3(-36.0, 0.0, -32.0)
 	_player.machine.transition_to(&"grounded")
+	# Back to the rifle. Phases must not inherit whatever the previous one left
+	# equipped: a phase that expected an automatic weapon and got the
+	# semi-automatic sniper fired nothing at all and still reported a result,
+	# which is worse than failing.
+	_force_weapon(1)
+
+## Equip a slot instantly, skipping the draw time. Tests are checking the
+## weapon, not the animation.
+func _force_weapon(slot: int) -> void:
+	for i in _weapons.runtimes.size():
+		if _weapons.runtimes[i].resource.slot == slot:
+			_weapons.current_index = i
+			break
+	var rt := _weapons.current()
+	rt.phase = WeaponRuntime.Phase.READY
+	rt.state_ticks = 0
+	rt.state_ticks_total = 0
+	_player.aim_has_scope = rt.resource.has_scope
+	# Announced, not just assigned. Setting current_index quietly left the view
+	# model still holding the previous weapon, and the *next* real switch was
+	# then ignored as a no-op because the index already matched.
+	_weapons.weapon_changed.emit(rt.resource)
 
 ## Reset the weapon to a known state: full magazine, no heat, no recoil.
 func _reset_weapon() -> void:
@@ -333,6 +355,64 @@ func _build_plan() -> void:
 						if child is MeshInstance3D and (child as MeshInstance3D).mesh is QuadMesh:
 							holes += 1
 				_expect(holes > 0, "%d bullet hole(s) left on the floor" % holes),
+		},
+		{
+			# The sniper used to "aim" by parking its receiver in front of the
+			# camera. Sighting an optic has to hide the weapon and hand the
+			# screen to the scope instead.
+			"name": "the sniper sights through an optic, not past the gun",
+			"ticks": int(hz * 1.6),
+			"setup": func() -> void:
+				_stand_at_firing_line()
+				_reset_weapon(),
+			"during": func(t: int) -> void:
+				if t == 1:
+					_player.cmd.weapon_slot = 3
+				elif t > int(hz * 0.8):
+					_player.cmd.aim_held = true,
+			"check": func() -> void:
+				var weapon := _weapons.current().resource
+				_expect(weapon.id == &"sniper", "sniper is equipped")
+				_expect(weapon.has_scope, "the sniper declares an optic")
+				_expect(_player.aim_blend > 0.95,
+					"fully sighted (blend %.2f)" % _player.aim_blend)
+				_expect(not _player.view_model.visible,
+					"the weapon model is out of the way while scoped"),
+		},
+		{
+			# Silence is the failure mode a synthesised bank fails into: a bad
+			# envelope produces a perfectly valid, empty stream and nothing
+			# anywhere complains about it.
+			"name": "every sound generates audible audio",
+			"ticks": 10,
+			"check": func() -> void:
+				var names: Array[StringName] = [
+					&"shot_rifle", &"shot_shotgun", &"shot_sniper", &"shot_pistol",
+					&"mag_out", &"mag_in", &"charge", &"switch",
+					&"footstep", &"land", &"jump", &"hit", &"hit_head", &"kill",
+					&"impact",
+				]
+				var silent: Array[String] = []
+				var lengths := {}
+				for sound_name in names:
+					var stream := SoundBank.get_sound(sound_name)
+					var loud := false
+					if stream != null:
+						lengths[stream.data.size()] = true
+						for i in range(0, stream.data.size() - 1, 64):
+							if absi(stream.data.decode_s16(i)) > 1200:
+								loud = true
+								break
+					if not loud:
+						silent.append(String(sound_name))
+				_expect(silent.is_empty(),
+					"all %d sounds carry signal%s" % [names.size(),
+					"" if silent.is_empty() else " except " + ", ".join(silent)])
+				# Distinct lengths prove the four gunshots are not one sound
+				# handed out four times.
+				_expect(lengths.size() >= 8,
+					"%d distinct sound lengths, so they are not clones"
+					% lengths.size()),
 		},
 		{
 			# The trackpad ceiling, as an assertion rather than a good

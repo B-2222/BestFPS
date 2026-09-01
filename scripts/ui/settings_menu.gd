@@ -138,6 +138,11 @@ func _build() -> void:
 	title.add_theme_color_override("font_color", Color(1.0, 0.78, 0.35))
 	column.add_child(title)
 
+	column.add_child(_build_slider_row("Master volume", 0.0, 1.0, 0.05,
+			_settings.master_volume,
+			func(v: float) -> void: _settings.set_master_volume(v),
+			func() -> float: return _settings.master_volume,
+			"%d%%"))
 	column.add_child(_build_sensitivity_row())
 	column.add_child(HSeparator.new())
 
@@ -162,6 +167,39 @@ func _build() -> void:
 
 	column.add_child(HSeparator.new())
 	column.add_child(_build_buttons())
+
+## Generic labelled slider, so volume and sensitivity stay one implementation.
+func _build_slider_row(label_text: String, minimum: float, maximum: float,
+		step: float, value: float, on_change: Callable, read_back: Callable,
+		format: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(170, 0)
+	label.add_theme_font_size_override("font_size", 14)
+	row.add_child(label)
+
+	var slider := HSlider.new()
+	slider.min_value = minimum
+	slider.max_value = maximum
+	slider.step = step
+	slider.value = value
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+
+	var readout := Label.new()
+	readout.custom_minimum_size = Vector2(52, 0)
+	readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	readout.add_theme_font_size_override("font_size", 14)
+	readout.text = format % (read_back.call() * 100.0)
+	row.add_child(readout)
+
+	slider.value_changed.connect(func(v: float) -> void:
+		on_change.call(v)
+		readout.text = format % (v * 100.0))
+	return row
 
 func _build_sensitivity_row() -> Control:
 	var row := HBoxContainer.new()

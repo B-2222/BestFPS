@@ -95,6 +95,10 @@ extends Resource
 @export_range(0.1, 1.0, 0.01) var aim_move_multiplier: float = 0.55
 ## FOV subtracted from the base while aiming.
 @export var aim_fov_reduction: float = 18.0
+## True for a magnified optic. Sighting one hides the weapon and replaces the
+## view with a scope picture, rather than shoving the receiver in front of the
+## player's face and calling it aiming.
+@export var has_scope: bool = false
 
 func seconds_per_shot() -> float:
 	return 60.0 / maxf(rounds_per_minute, 1.0)

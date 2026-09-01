@@ -135,7 +135,12 @@ are genuinely distinct.
 - A shooting range with targets at measured distances
 - Tracers, impacts, damage numbers, hit markers, and a crosshair that shows
   the true spread cone
-- 20 combat checks in CI, gating the deploy
+- A working optic on the sniper: the weapon is hidden and the screen becomes
+  the scope, rather than the receiver being parked in front of the camera
+- Sound, synthesised at load rather than shipped as files. Hooking it up
+  touched no gameplay code, because the controllers were already announcing
+  everything worth hearing
+- 50 combat checks in CI, gating the deploy
 
 Rifle baseline: 22 damage, 2.2x on the head, 600 rpm — **5 body shots and
 0.40 s to kill**, or 3 headshots. The other three weapons get tuned against
@@ -143,9 +148,6 @@ that number rather than in isolation.
 
 ### Still to come in M2
 
-- Sound. The controller already emits `jumped`, `landed`, `stepped`, `fired`,
-  `reload_started` and `hit_confirmed`, so this is hooking up a bus rather than
-  adding plumbing.
 - Real weapon models. The placeholders are boxes, one silhouette per weapon.
 
   **Sourcing, since it came up:** [Quaternius](https://quaternius.com/) and

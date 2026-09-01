@@ -177,6 +177,11 @@ func _process(delta: float) -> void:
 		extra_rotation = _pose_rotation(runtime)
 	_animate_parts(runtime)
 
+	# A scoped weapon is hidden once the optic takes over the screen. You are
+	# looking through the sight, not past the gun, and leaving the model in
+	# view is exactly what made the sniper feel like staring at a block.
+	visible = not (_controller.aim_has_scope and _controller.aim_blend > 0.55)
+
 	var weight := 1.0 - exp(-delta * SETTLE_SPEED)
 	# The kick pushes the weapon back toward the camera, not down the barrel.
 	var kicked := target + Vector3(_sway.x, _sway.y, _kick * 0.06)

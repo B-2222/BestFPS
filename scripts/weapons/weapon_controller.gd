@@ -271,3 +271,4 @@ func _push_player_modifiers(rt: WeaponRuntime) -> void:
 	_player.speed_multiplier = multiplier
 	_player.is_aiming = is_aiming
 	_player.aim_fov_reduction = res.aim_fov_reduction
+	_player.aim_has_scope = res.has_scope

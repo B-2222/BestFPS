@@ -1,10 +1,11 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/player/player_input.gd" id="2_input"]
 [ext_resource type="Script" path="res://scripts/player/camera_rig.gd" id="3_camera"]
 [ext_resource type="Script" path="res://scripts/weapons/weapon_controller.gd" id="5_weapons"]
 [ext_resource type="Script" path="res://scripts/player/view_model.gd" id="6_viewmodel"]
+[ext_resource type="Script" path="res://scripts/audio/audio_director.gd" id="7_audio"]
 [ext_resource type="Resource" path="res://assets/config/player_default.tres" id="4_config"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_player"]
@@ -43,3 +44,6 @@ script = ExtResource("2_input")
 
 [node name="WeaponController" type="Node" parent="."]
 script = ExtResource("5_weapons")
+
+[node name="AudioDirector" type="Node" parent="."]
+script = ExtResource("7_audio")

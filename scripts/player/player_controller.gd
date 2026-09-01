@@ -35,6 +35,8 @@ const HEADROOM_MARGIN := 0.02
 ## Floor on the hull height, purely to keep a mis-tuned config from producing a
 ## zero-height collision shape.
 const MIN_HULL_HEIGHT := 0.2
+## Time to raise or lower sights.
+const AIM_BLEND_SECONDS := 0.18
 
 @export var config: PlayerConfig
 
@@ -87,6 +89,12 @@ var recoil_offset: Vector2 = Vector2.ZERO
 var speed_multiplier: float = 1.0
 var is_aiming: bool = false
 var aim_fov_reduction: float = 0.0
+## Whether the equipped weapon sights through an optic rather than iron sights.
+var aim_has_scope: bool = false
+## 0 hip, 1 fully sighted. One shared value so the FOV, the weapon model and
+## the scope overlay ease on exactly the same curve -- driven separately they
+## visibly disagree, and the scope appears before the zoom arrives.
+var aim_blend: float = 0.0
 
 ## Accumulated stair pop the camera has not smoothed away yet.
 var pending_step: float = 0.0
@@ -177,6 +185,12 @@ func _physics_process(delta: float) -> void:
 
 	machine.update(cmd, delta)
 	apply_view()
+
+	# Deliberately not frame-rate dependent: raising a scope has to take the
+	# same real time regardless of frame rate, because it is a fair trade the
+	# player is making against being slow.
+	var aim_target := 1.0 if is_aiming else 0.0
+	aim_blend = move_toward(aim_blend, aim_target, delta / AIM_BLEND_SECONDS)
 
 	_update_height(delta)
 	_step_up(delta)

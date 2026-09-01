@@ -91,12 +91,21 @@ verified in CI, and the browser build above is always current.
 | `Backspace` | Respawn at spawn point |
 
 Every binding in that table can be changed in the settings menu (`Esc`), and
-your choices persist between sessions. Mouse sensitivity is there too — worth
-turning down on a trackpad.
+your choices persist between sessions. Master volume and mouse sensitivity are
+there too — both worth turning down on a laptop.
+
+### Sound
+
+All of it is **synthesised at load**, not loaded from files: gunshots are
+filtered noise plus a pitch-swept body, footfalls and impacts are damped low
+noise, and interface blips are swept sines. Each weapon gets its own character
+from four numbers. There are no audio files in this repo and no licence
+attached to any of it — see `scripts/audio/sound_bank.gd`. Real recordings
+replace the streams later without touching anything that plays them.
 | `F3` | Toggle the tuning HUD |
 | `F1` | Slide on/off (try both — see below) |
 | `F2` | Auto bunny-hop on/off (try both — see below) |
-| `Esc` | Settings — rebind any key, adjust mouse sensitivity |
+| `Esc` | Settings — rebind any key, adjust volume and mouse sensitivity |
 
 ## The test level
 
@@ -117,7 +126,7 @@ lives in `assets/config/weapons/*.tres` and can be edited without touching code.
 |---|---|---|---|---|---|---|
 | **Rifle** `1` | 22 | 2.2x | 600 rpm, auto | 30 | 5 (0.40 s) | The baseline everything else is tuned against |
 | **Shotgun** `2` | 13 x 9 pellets | 1.5x | 75 rpm | 6 | 1 up close | Useless past ~18 m; falls to 28% damage |
-| **Sniper** `3` | 88 | 2.6x | 45 rpm | 5 | 2 — **1 headshot** | Pinpoint aimed, wild from the hip; heavy zoom, slowest to carry |
+| **Sniper** `3` | 88 | 2.6x | 45 rpm | 5 | 2 — **1 headshot** | Sights through a real scope: the weapon is hidden and the screen becomes the optic. Pinpoint aimed, wild from the hip; slowest to carry |
 | **Pistol** `4` | 18 | 2.4x | 420 rpm | 15 | 6 | Fastest to draw (0.25 s) and the only one that does not slow you down |
 
 They differ in more than damage: movement speed, aim-down-sights zoom, reload

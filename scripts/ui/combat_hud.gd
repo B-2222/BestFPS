@@ -10,6 +10,7 @@ var player: PlayerController
 var weapons: WeaponController
 
 var _crosshair: Crosshair
+var _scope: ScopeOverlay
 var _ammo: Label
 var _weapon_name: Label
 var _reload: Label
@@ -35,8 +36,17 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if weapons == null or _crosshair == null:
 		return
+	var scoped := player != null and player.aim_has_scope
+	# The optic replaces the crosshair rather than sitting behind it. Two
+	# aiming references on screen at once is just clutter.
+	_scope.blend = player.aim_blend if scoped else 0.0
+	_scope.visible = _scope.blend > 0.01
+	_crosshair.scoped_out = _scope.blend > 0.55
+
 	_crosshair.spread_pixels = _spread_to_pixels(weapons.current_spread_degrees())
 	_crosshair.advance(delta)
+	if _scope.visible:
+		_scope.queue_redraw()
 
 ## Convert the spread cone to the radius it actually covers on screen, so the
 ## crosshair is a truthful picture of where a bullet can land rather than a
@@ -80,6 +90,12 @@ func _build() -> void:
 	_crosshair.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_crosshair)
+
+	_scope = ScopeOverlay.new()
+	_scope.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scope.visible = false
+	add_child(_scope)
 
 	_ammo = Label.new()
 	_ammo.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -126,6 +142,8 @@ class Crosshair:
 	extends Control
 
 	var spread_pixels: float = 6.0
+	## Suppressed while an optic owns the screen.
+	var scoped_out: bool = false
 
 	var _flash_time: float = 0.0
 	var _flash_total: float = 0.0
@@ -145,6 +163,8 @@ class Crosshair:
 		queue_redraw()
 
 	func _draw() -> void:
+		if scoped_out:
+			return
 		var centre := size * 0.5
 		# Floor at 4 px: a pinpoint crosshair is unreadable, and the gap should
 		# never imply more accuracy than the weapon has.
@@ -168,3 +188,53 @@ class Crosshair:
 		var outer := 11.0
 		for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 			draw_line(centre + corner * inner, centre + corner * outer, marker, 2.0)
+
+## The sniper's sight picture: everything outside a circle blacked out, with a
+## reticle inside.
+##
+## The blackout is one very thick arc rather than a masked texture. Control has
+## no "draw everything except this circle" primitive, and a ring whose width
+## reaches past the screen corners is exactly that, in one call, at any
+## resolution.
+class ScopeOverlay:
+	extends Control
+
+	## 0 hip, 1 fully sighted. Drives both opacity and the circle's size.
+	var blend: float = 0.0
+
+	const RING_SEGMENTS := 128
+
+	func _draw() -> void:
+		if blend <= 0.01:
+			return
+		var centre := size * 0.5
+		# Fade in over the back half of the raise, so the optic arrives with
+		# the zoom rather than before it.
+		var alpha := clampf((blend - 0.45) / 0.45, 0.0, 1.0)
+		if alpha <= 0.0:
+			return
+
+		var radius := minf(size.x, size.y) * 0.42 * (0.90 + 0.10 * blend)
+		# Thick enough to reach past the corners at any aspect ratio.
+		var reach := size.length() * 0.5
+		var thickness := reach - radius + 24.0
+		draw_arc(centre, radius + thickness * 0.5, 0.0, TAU, RING_SEGMENTS,
+				Color(0, 0, 0, alpha), thickness, true)
+		draw_arc(centre, radius, 0.0, TAU, RING_SEGMENTS,
+				Color(0.06, 0.07, 0.09, alpha), 3.0, true)
+
+		var ink := Color(0.04, 0.05, 0.06, alpha)
+		var gap := radius * 0.055
+		var arm := radius * 0.92
+		draw_line(centre + Vector2(-arm, 0), centre + Vector2(-gap, 0), ink, 1.5, true)
+		draw_line(centre + Vector2(gap, 0), centre + Vector2(arm, 0), ink, 1.5, true)
+		draw_line(centre + Vector2(0, -arm), centre + Vector2(0, -gap), ink, 1.5, true)
+		draw_line(centre + Vector2(0, gap), centre + Vector2(0, arm), ink, 1.5, true)
+
+		# Holdover dots below the centre, the usual way a scope marks drop.
+		for i in range(1, 5):
+			var y := radius * 0.16 * float(i)
+			var width := radius * (0.030 if i % 2 == 0 else 0.018)
+			draw_line(centre + Vector2(-width, y), centre + Vector2(width, y), ink, 1.5, true)
+
+		draw_circle(centre, 1.6, ink)
