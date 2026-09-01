@@ -23,6 +23,9 @@ var reserve: int = 0
 var phase: Phase = Phase.READY
 ## Ticks left in RELOADING or EQUIPPING.
 var state_ticks: int = 0
+## What state_ticks started at, so presentation can ask how far through the
+## animation it is without having to re-derive the duration from the resource.
+var state_ticks_total: int = 0
 ## Ticks until the weapon may fire again.
 var cooldown_ticks: int = 0
 ## Consecutive shots, indexing the recoil pattern and driving spread growth.
@@ -50,3 +53,10 @@ func can_reload() -> bool:
 
 func total_ammo() -> int:
 	return magazine + reserve
+
+## 0 at the start of a reload or weapon swap, 1 at the end. Returns 1 when
+## nothing is in progress, so callers can treat "idle" as "finished".
+func phase_progress() -> float:
+	if state_ticks_total <= 0:
+		return 1.0
+	return clampf(1.0 - float(state_ticks) / float(state_ticks_total), 0.0, 1.0)

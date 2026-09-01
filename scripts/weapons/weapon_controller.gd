@@ -20,6 +20,9 @@ signal reload_finished()
 ## addition here plus a .tres, with no code change.
 const DEFAULT_LOADOUT: Array[String] = [
 	"res://assets/config/weapons/rifle.tres",
+	"res://assets/config/weapons/shotgun.tres",
+	"res://assets/config/weapons/sniper.tres",
+	"res://assets/config/weapons/pistol.tres",
 ]
 
 @export var loadout: Array[WeaponResource] = []
@@ -122,6 +125,7 @@ func _handle_switch(cmd: InputCommand) -> void:
 		# legitimate way to escape a long reload, and players expect it.
 		rt.phase = WeaponRuntime.Phase.EQUIPPING
 		rt.state_ticks = seconds_to_ticks(rt.resource.equip_seconds)
+		rt.state_ticks_total = rt.state_ticks
 		rt.shot_index = 0
 		rt.spread = rt.resource.spread_min
 		weapon_changed.emit(rt.resource)
@@ -138,6 +142,7 @@ func _handle_reload(cmd: InputCommand, rt: WeaponRuntime) -> void:
 		return
 	rt.phase = WeaponRuntime.Phase.RELOADING
 	rt.state_ticks = seconds_to_ticks(rt.resource.reload_seconds)
+	rt.state_ticks_total = rt.state_ticks
 	reload_started.emit(rt.resource.reload_seconds)
 
 func _handle_fire(cmd: InputCommand, rt: WeaponRuntime) -> void:

@@ -23,6 +23,7 @@ var _body_damage_near := 0.0
 var _head_damage_near := 0.0
 var _body_damage_far := 0.0
 var _shots_to_kill := 0
+var _shot_damage := 0.0
 var _target_died := false
 
 var _arena: Node
@@ -46,8 +47,15 @@ func _wire() -> void:
 		quit(1)
 		return
 	_rifle = _weapons.current().resource
-	_weapons.fired.connect(func(_w: WeaponResource) -> void: _shots_fired += 1)
-	_weapons.hit_confirmed.connect(func(info: DamageInfo) -> void: _last_damage = info.amount)
+	# fired is emitted before the traces resolve, so resetting here and summing
+	# in hit_confirmed gives the total damage of one shot -- which is the only
+	# meaningful number for a shotgun.
+	_weapons.fired.connect(func(_w: WeaponResource) -> void:
+		_shots_fired += 1
+		_shot_damage = 0.0)
+	_weapons.hit_confirmed.connect(func(info: DamageInfo) -> void:
+		_last_damage = info.amount
+		_shot_damage += info.amount)
 	_build_plan()
 	print("\n=== combat smoke test (%d phases) ===\n" % _plan.size())
 
@@ -88,6 +96,15 @@ func _aim_at(point: Vector3) -> void:
 	_player.pitch = atan2(to.y, Vector2(to.x, to.z).length())
 	_player.recoil_offset = Vector2.ZERO
 	_player.apply_view()
+
+## Four metres from the 10 m dummy: close enough that a shotgun's pellets all
+## land, so per-weapon damage is a fixed number rather than a dice roll.
+func _stand_close_to_target() -> void:
+	var target := _target(10)
+	_player.velocity = Vector3.ZERO
+	_player.global_position = target.global_position + Vector3(0.0, 0.0, 4.0)
+	_player.machine.transition_to(&"grounded")
+	target.health.revive()
 
 func _stand_at_firing_line() -> void:
 	_player.velocity = Vector3.ZERO
@@ -318,6 +335,24 @@ func _build_plan() -> void:
 				_expect(holes > 0, "%d bullet hole(s) left on the floor" % holes),
 		},
 		{
+			# The trackpad ceiling, as an assertion rather than a good
+			# intention. Sustained climb is the per-shot kick times the fire
+			# rate; past about 3 deg/s a trackpad cannot drag the view back
+			# down, which is the complaint that got the rifle halved.
+			"name": "no weapon out-recoils a trackpad",
+			"ticks": 10,
+			"check": func() -> void:
+				for runtime in _weapons.runtimes:
+					var weapon: WeaponResource = runtime.resource
+					var total := 0.0
+					for kick in weapon.recoil_pattern:
+						total += kick.y
+					var average := total / maxf(float(weapon.recoil_pattern.size()), 1.0)
+					var climb := average * (weapon.rounds_per_minute / 60.0)
+					_expect(climb < 3.0, "%s climbs %.2f deg/s under sustained fire"
+							% [weapon.display_name, climb]),
+		},
+		{
 			"name": "recoil moves the view and then recovers",
 			"ticks": int(hz * 2.0),
 			"setup": func() -> void:
@@ -338,6 +373,52 @@ func _build_plan() -> void:
 						% rad_to_deg(_player.recoil_offset.length())),
 		},
 	]
+
+	# One equip-and-fire phase per weapon, generated rather than written out
+	# four times: every weapon must switch in, shoot, and do the damage its
+	# resource claims. The intended shots-to-kill sits next to each so a tuning
+	# change that quietly halves a weapon's role fails here instead of in a
+	# playtest three weeks later.
+	var intended := {
+		&"rifle": 5, &"shotgun": 1, &"sniper": 2, &"pistol": 6,
+	}
+	for runtime in _weapons.runtimes:
+		var weapon: WeaponResource = runtime.resource
+		var expected_shots: int = intended.get(weapon.id, 0)
+		_plan.append({
+			"name": "%s equips, fires, and hits for what it claims" % weapon.display_name,
+			"ticks": int(hz * (weapon.equip_seconds + 1.2)),
+			"setup": func() -> void:
+				_stand_close_to_target()
+				_reset_weapon()
+				_shot_damage = 0.0,
+			"during": func(t: int) -> void:
+				# Ask for the slot on tick 1, then wait out the equip time.
+				if t == 1:
+					_player.cmd.weapon_slot = weapon.slot
+				elif t == int(hz * (weapon.equip_seconds + 0.35)):
+					_reset_weapon()
+					_aim_at(_body_point(_target(10)))
+					_player.cmd.fire_pressed = true
+					_player.cmd.fire_held = true,
+			"check": func() -> void:
+				var current := _weapons.current().resource
+				_expect(current.id == weapon.id,
+						"%s is equipped" % weapon.display_name)
+				# The view model must have actually swapped shape, not just the
+				# stats. Barrel lengths differ, so the muzzle offset does too.
+				var muzzle_local: Vector3 = _player.view_model.to_local(
+						_player.get_muzzle_position())
+				var expected: Vector3 = ViewModel.SHAPES[weapon.view_shape]["muzzle"]
+				_expect(muzzle_local.distance_to(expected) < 0.01,
+						"draws the %s model (muzzle at z=%.3f)"
+						% [weapon.view_shape, muzzle_local.z])
+				_expect(_shot_damage > 0.0,
+						"one shot dealt %.1f damage" % _shot_damage)
+				var shots := ceili(100.0 / maxf(_shot_damage, 0.001))
+				_expect(shots == expected_shots,
+						"%d shot(s) to kill 100 hp, as intended" % shots),
+		})
 
 # ---------------------------------------------------------------------------
 

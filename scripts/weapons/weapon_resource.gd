@@ -18,6 +18,13 @@ extends Resource
 ## Slot the weapon occupies, selected with the 1-4 keys.
 @export var slot: int = 1
 
+## Which placeholder viewmodel to build, and how it reloads. Presentation
+## keyed off the weapon rather than hardcoded, so a new weapon stays a resource
+## plus a shape entry rather than a code change.
+@export var view_shape: StringName = &"rifle"
+## &"magazine" drops and swaps a mag; &"pump" cycles the handguard.
+@export var reload_style: StringName = &"magazine"
+
 @export_group("Firing")
 ## Held trigger keeps firing. False means one shot per press.
 @export var automatic: bool = true

@@ -12,7 +12,7 @@ remaining three weapons are next.
 |---|---|---|
 | M0 | Foundations | Done |
 | M1 | Movement and feel | Done — signed off |
-| M2 | Gunplay + networking spike | **In progress** — rifle, settings, spike done |
+| M2 | Gunplay + networking spike | **In progress** — four weapons and spike done |
 | M3 | Bots | Not started |
 | M4 | The arena | Not started |
 | M5 | Multiplayer | Not started |
@@ -143,7 +143,20 @@ that number rather than in isolation.
 
 ### Still to come in M2
 
-- Shotgun, sniper and pistol, tuned against the rifle's TTK
+- Sound. The controller already emits `jumped`, `landed`, `stepped`, `fired`,
+  `reload_started` and `hit_confirmed`, so this is hooking up a bus rather than
+  adding plumbing.
+- Real weapon models. The placeholders are boxes, one silhouette per weapon.
+
+  **Sourcing, since it came up:** [Quaternius](https://quaternius.com/) and
+  [Kenney](https://kenney.nl/) both publish CC0 (public domain, no attribution
+  required, commercial use fine) low-poly weapon packs in glTF, which is the
+  format Godot imports best. Those are the two to start from. They could not be
+  downloaded from this environment -- the network policy blocks them -- and
+  they are worth holding until there is a decision about whether the game keeps
+  the grey-box look, because a realistic rifle against untextured boxes looks
+  worse than a box that matches. The `view_shape` field already keys
+  presentation off the weapon, so swapping a box for a mesh is contained.
 - **Attachments** *(requested)* — a scope, grip, barrel or stock should change
   how the gun actually behaves: recoil, damage and therefore TTK, handling
   feel, and movement speed. Not cosmetic.

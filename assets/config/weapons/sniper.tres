@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="WeaponResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_resource.gd" id="1_weapon"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"sniper"
+display_name = "Sniper"
+slot = 3
+view_shape = &"sniper"
+reload_style = &"magazine"
+automatic = false
+rounds_per_minute = 45.0
+damage = 88.0
+headshot_multiplier = 2.6
+pellets = 1
+max_range = 400.0
+falloff_start = 300.0
+falloff_end = 400.0
+falloff_min_multiplier = 0.9
+spread_min = 2.6
+spread_max = 5.0
+spread_per_shot = 1.4
+spread_recovery = 4.0
+spread_moving = 2.5
+spread_aim_multiplier = 0.02
+recoil_pattern = PackedVector2Array(0.0, 1.15, 0.09, 1.10)
+recoil_recovery = 13.0
+recoil_recovery_delay = 0.15
+magazine_size = 5
+reserve_ammo = 25
+reload_seconds = 3.2
+equip_seconds = 0.60
+move_speed_multiplier = 0.86
+aim_move_multiplier = 0.32
+aim_fov_reduction = 45.0

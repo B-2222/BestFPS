@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="WeaponResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_resource.gd" id="1_weapon"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"shotgun"
+display_name = "Shotgun"
+slot = 2
+view_shape = &"shotgun"
+reload_style = &"pump"
+automatic = false
+rounds_per_minute = 75.0
+damage = 13.0
+headshot_multiplier = 1.5
+pellets = 9
+max_range = 60.0
+falloff_start = 5.0
+falloff_end = 18.0
+falloff_min_multiplier = 0.28
+spread_min = 3.4
+spread_max = 5.5
+spread_per_shot = 0.45
+spread_recovery = 5.0
+spread_moving = 1.2
+spread_aim_multiplier = 0.72
+recoil_pattern = PackedVector2Array(0.10, 0.95, -0.13, 0.90, 0.15, 0.92)
+recoil_recovery = 12.0
+recoil_recovery_delay = 0.14
+magazine_size = 6
+reserve_ammo = 30
+reload_seconds = 2.9
+equip_seconds = 0.50
+move_speed_multiplier = 0.94
+aim_move_multiplier = 0.62
+aim_fov_reduction = 8.0

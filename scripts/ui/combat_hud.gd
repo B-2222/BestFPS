@@ -11,6 +11,7 @@ var weapons: WeaponController
 
 var _crosshair: Crosshair
 var _ammo: Label
+var _weapon_name: Label
 var _reload: Label
 
 func _ready() -> void:
@@ -25,9 +26,11 @@ func _ready() -> void:
 		weapons.killed.connect(_on_kill)
 		weapons.reload_started.connect(_on_reload_started)
 		weapons.reload_finished.connect(_on_reload_finished)
+		weapons.weapon_changed.connect(_on_weapon_changed)
 		var rt := weapons.current()
 		if rt != null:
 			_on_ammo_changed(rt.magazine, rt.reserve)
+			_on_weapon_changed(rt.resource)
 
 func _process(delta: float) -> void:
 	if weapons == null or _crosshair == null:
@@ -52,6 +55,9 @@ func _on_ammo_changed(magazine: int, reserve: int) -> void:
 	# tags on screen rather than colouring anything.
 	_ammo.text = "%d / %d" % [magazine, reserve]
 	_ammo.modulate = Color(1.0, 0.45, 0.4) if magazine == 0 else Color(1, 1, 1)
+
+func _on_weapon_changed(weapon: WeaponResource) -> void:
+	_weapon_name.text = "%d  %s" % [weapon.slot, weapon.display_name.to_upper()]
 
 func _on_hit(info: DamageInfo) -> void:
 	_crosshair.flash(HITMARKER_SECONDS,
@@ -88,6 +94,20 @@ func _build() -> void:
 	_ammo.add_theme_font_size_override("font_size", 34)
 	_ammo.text = "--"
 	add_child(_ammo)
+
+	_weapon_name = Label.new()
+	_weapon_name.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_weapon_name.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_weapon_name.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_weapon_name.offset_left = -240
+	_weapon_name.offset_top = -102
+	_weapon_name.offset_right = -32
+	_weapon_name.offset_bottom = -76
+	_weapon_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_weapon_name.add_theme_font_size_override("font_size", 15)
+	_weapon_name.add_theme_color_override("font_color", Color(1.0, 0.78, 0.35))
+	_weapon_name.text = ""
+	add_child(_weapon_name)
 
 	_reload = Label.new()
 	_reload.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)

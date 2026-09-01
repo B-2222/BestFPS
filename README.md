@@ -7,9 +7,9 @@ gunplay and bots — in that order.
 
 [![Web build](https://github.com/B-2222/BestFPS/actions/workflows/web.yml/badge.svg)](https://github.com/B-2222/BestFPS/actions/workflows/web.yml)
 
-**Current state: Milestone 2 in progress — movement and the first weapon.**
-One rifle, a shooting range with targets at measured distances, and no enemies
-that shoot back yet. See [ROADMAP.md](ROADMAP.md).
+**Current state: Milestone 2 — movement and four weapons.** A shooting range
+with targets at measured distances, and no enemies that shoot back yet. See
+[ROADMAP.md](ROADMAP.md).
 
 ![The movement test arena](docs/images/test-arena.png)
 
@@ -107,6 +107,23 @@ ramps either side of the walkable angle, gaps from 2 m to 6 m.
 
 **If you only do one thing:** press F3 and work through the ten tests in
 [docs/movement-tuning.md](docs/movement-tuning.md).
+
+### The weapons
+
+Four roles, balanced against each other rather than in isolation. Every number
+lives in `assets/config/weapons/*.tres` and can be edited without touching code.
+
+| | Damage | Head | Rate | Mag | Body shots to kill | Notes |
+|---|---|---|---|---|---|---|
+| **Rifle** `1` | 22 | 2.2x | 600 rpm, auto | 30 | 5 (0.40 s) | The baseline everything else is tuned against |
+| **Shotgun** `2` | 13 x 9 pellets | 1.5x | 75 rpm | 6 | 1 up close | Useless past ~18 m; falls to 28% damage |
+| **Sniper** `3` | 88 | 2.6x | 45 rpm | 5 | 2 — **1 headshot** | Pinpoint aimed, wild from the hip; heavy zoom, slowest to carry |
+| **Pistol** `4` | 18 | 2.4x | 420 rpm | 15 | 6 | Fastest to draw (0.25 s) and the only one that does not slow you down |
+
+They differ in more than damage: movement speed, aim-down-sights zoom, reload
+and equip times, spread while moving, and recoil are all per-weapon. Recoil is
+deliberately mild on all four — sustained climb stays under 2.1 deg/s, which a
+trackpad can still counter, and a test enforces that ceiling.
 
 ### The shooting range
 
