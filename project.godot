@@ -15,6 +15,12 @@ config/description="First person shooter. Stage 1: movement."
 run/main_scene="res://scenes/levels/test_arena.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 
+[autoload]
+
+; Owns rebindable input and persisted preferences. Loaded before any scene so
+; the InputMap is already patched by the time a player reads from it.
+GameSettings="*res://scripts/core/game_settings.gd"
+
 [display]
 
 window/size/viewport_width=1600

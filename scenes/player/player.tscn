@@ -1,9 +1,10 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/player/player_input.gd" id="2_input"]
 [ext_resource type="Script" path="res://scripts/player/camera_rig.gd" id="3_camera"]
 [ext_resource type="Script" path="res://scripts/weapons/weapon_controller.gd" id="5_weapons"]
+[ext_resource type="Script" path="res://scripts/player/view_model.gd" id="6_viewmodel"]
 [ext_resource type="Resource" path="res://assets/config/player_default.tres" id="4_config"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_player"]
@@ -27,6 +28,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
 
 [node name="CameraArm" type="Node3D" parent="Head"]
 script = ExtResource("3_camera")
+
+[node name="ViewModel" type="Node3D" parent="Head/CameraArm"]
+script = ExtResource("6_viewmodel")
 
 [node name="Camera3D" type="Camera3D" parent="Head/CameraArm"]
 current = true

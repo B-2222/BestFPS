@@ -120,7 +120,7 @@ func _build_ui() -> void:
 	column.add_child(_graph)
 
 	_hint = Label.new()
-	_hint.text = "WASD move   Space jump   Shift sprint   Ctrl crouch (sprint+crouch = slide)   R respawn   Esc free mouse"
+	_hint.text = "WASD move   Space jump   Shift sprint   Ctrl crouch (sprint+crouch = slide)   LMB fire   RMB aim   R reload   Esc settings"
 	_hint.add_theme_font_size_override("font_size", 12)
 	_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
 	_hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)

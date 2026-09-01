@@ -12,7 +12,7 @@ remaining three weapons are next.
 |---|---|---|
 | M0 | Foundations | Done |
 | M1 | Movement and feel | Done — signed off |
-| M2 | Gunplay + networking spike | **In progress** — rifle done, spike done |
+| M2 | Gunplay + networking spike | **In progress** — rifle, settings, spike done |
 | M3 | Bots | Not started |
 | M4 | The arena | Not started |
 | M5 | Multiplayer | Not started |
@@ -140,6 +140,30 @@ are genuinely distinct.
 Rifle baseline: 22 damage, 2.2x on the head, 600 rpm — **5 body shots and
 0.40 s to kill**, or 3 headshots. The other three weapons get tuned against
 that number rather than in isolation.
+
+### Still to come in M2
+
+- Shotgun, sniper and pistol, tuned against the rifle's TTK
+- **Attachments** *(requested)* — a scope, grip, barrel or stock should change
+  how the gun actually behaves: recoil, damage and therefore TTK, handling
+  feel, and movement speed. Not cosmetic.
+
+  The architecture already suits this and it should stay a contained addition,
+  so writing down the intended shape now: an `AttachmentResource` carries a set
+  of modifiers, and equipping a weapon builds an *effective* `WeaponResource`
+  by duplicating the base and folding each attachment's modifiers into it.
+  Attachments only change in a loadout screen, never mid-burst, so this costs
+  one computation per equip and **nothing changes in the per-shot path** —
+  `WeaponRuntime` keeps reading a single resource and does not learn that
+  attachments exist.
+
+  Movement speed is already wired: `WeaponResource.move_speed_multiplier` feeds
+  `PlayerController.speed_multiplier` every tick, so a heavy barrel slowing the
+  player needs no new plumbing.
+
+  The real design risk is not code, it is balance — attachments that are
+  strictly better are just a tax on players who have not unlocked them. Each
+  one should trade something.
 
 ### The networking spike *(the deliberate exception to pillar order)*
 

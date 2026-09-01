@@ -89,10 +89,14 @@ verified in CI, and the browser build above is always current.
 | `R` | Reload |
 | `1`–`4` / wheel | Switch weapon |
 | `Backspace` | Respawn at spawn point |
+
+Every binding in that table can be changed in the settings menu (`Esc`), and
+your choices persist between sessions. Mouse sensitivity is there too — worth
+turning down on a trackpad.
 | `F3` | Toggle the tuning HUD |
 | `F1` | Slide on/off (try both — see below) |
 | `F2` | Auto bunny-hop on/off (try both — see below) |
-| `Esc` | Release the mouse (click to recapture) |
+| `Esc` | Settings — rebind any key, adjust mouse sensitivity |
 
 ## The test level
 

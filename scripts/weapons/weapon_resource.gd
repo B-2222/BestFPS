@@ -58,17 +58,22 @@ extends Resource
 ## An authored pattern rather than random spray, so it can be learned and
 ## countered -- that is the difference between recoil that rewards practice and
 ## recoil that just adds noise. Past the end of the array the last entry repeats.
+## Roughly 2.1 degrees of climb across a ten-round burst, and under half a
+## degree sideways. Tuned down from twice this after playtesting: the shape was
+## right but the magnitude assumed a mouse, and a trackpad cannot drag the view
+## back down fast enough to fight it. Recoil you cannot counter is not
+## difficulty, it is just a worse gun.
 @export var recoil_pattern: PackedVector2Array = PackedVector2Array([
-	Vector2(0.0, 0.42), Vector2(-0.10, 0.46), Vector2(0.14, 0.50),
-	Vector2(-0.20, 0.52), Vector2(0.26, 0.50), Vector2(0.32, 0.46),
-	Vector2(-0.30, 0.42), Vector2(-0.36, 0.38), Vector2(0.30, 0.34),
-	Vector2(0.24, 0.30),
+	Vector2(0.0, 0.20), Vector2(-0.05, 0.22), Vector2(0.07, 0.24),
+	Vector2(-0.09, 0.25), Vector2(0.12, 0.24), Vector2(0.15, 0.22),
+	Vector2(-0.14, 0.20), Vector2(-0.16, 0.18), Vector2(0.13, 0.16),
+	Vector2(0.11, 0.14),
 ])
 ## Degrees per second the view drifts back after the delay below.
-@export var recoil_recovery: float = 9.0
+@export var recoil_recovery: float = 11.0
 ## Grace period after the last shot before recovery starts, so tapping does not
 ## fight the player's own compensation.
-@export var recoil_recovery_delay: float = 0.12
+@export var recoil_recovery_delay: float = 0.10
 
 @export_group("Ammo and timing")
 @export var magazine_size: int = 30

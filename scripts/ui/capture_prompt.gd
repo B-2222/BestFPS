@@ -18,7 +18,7 @@ extends CanvasLayer
 const POLL_INTERVAL := 0.2
 
 const CONTROLS := "WASD move     Space jump     Shift sprint     Ctrl crouch (sprint + crouch = slide)" \
-		+ "\nR respawn     F3 stats     F1 slide on/off     F2 auto-bhop on/off     Esc release mouse"
+		+ "\nLeft click fire     Right click aim     R reload     F3 stats     Esc settings"
 
 var _input_source: PlayerInput
 var _card: PanelContainer
@@ -43,7 +43,9 @@ func _process(delta: float) -> void:
 	_refresh()
 
 func _refresh() -> void:
-	if _input_source == null:
+	if _input_source == null or get_tree().paused:
+		# Paused means a menu owns the screen; the mouse being free is expected
+		# there and does not need explaining.
 		_card.visible = false
 		return
 

@@ -69,7 +69,15 @@ func _input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed(&"ui_cancel"):
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		# Opens the settings menu, which pauses the tree and frees the mouse.
+		# Closing it is the menu's job -- this node is pausable, so it stops
+		# receiving input the moment the menu appears and the two cannot fight
+		# over the same key.
+		var menu := get_tree().get_first_node_in_group(&"settings_menu")
+		if menu != null:
+			menu.open()
+		else:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		get_viewport().set_input_as_handled()
 		return
 

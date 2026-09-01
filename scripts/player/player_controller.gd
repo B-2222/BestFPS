@@ -91,6 +91,10 @@ var aim_fov_reduction: float = 0.0
 var pending_step: float = 0.0
 
 var _input_source: Node = null
+## The GameSettings autoload, looked up by path rather than by its global name.
+## A custom SceneTree (the headless test suites) does not get autoloads, so the
+## name would resolve at parse time and be null at runtime.
+var _settings: Node = null
 var _input_source_assigned: bool = false
 var _hull: CylinderShape3D
 var _current_height: float = 1.8
@@ -136,6 +140,7 @@ func _ready() -> void:
 
 	if not _input_source_assigned:
 		_input_source = get_node_or_null(input_source_path)
+	_settings = get_node_or_null(^"/root/GameSettings")
 
 	machine = StateMachine.new()
 	machine.add_state(GroundedStateScript.new(self))
@@ -188,9 +193,15 @@ func _physics_process(delta: float) -> void:
 ## Applied the instant a mouse event arrives, not on the physics tick, so aim
 ## latency is bounded by the display refresh rather than the tick rate.
 func apply_look(mouse_delta: Vector2) -> void:
-	yaw = wrapf(yaw - mouse_delta.x * config.mouse_sensitivity, -PI, PI)
+	# The tuned value in PlayerConfig is the design default; the player's
+	# preference multiplies it, so changing one never silently overwrites the
+	# other.
+	var sensitivity := config.mouse_sensitivity
+	if _settings != null:
+		sensitivity *= _settings.mouse_sensitivity_scale
+	yaw = wrapf(yaw - mouse_delta.x * sensitivity, -PI, PI)
 	pitch = clampf(
-		pitch - mouse_delta.y * config.mouse_sensitivity,
+		pitch - mouse_delta.y * sensitivity,
 		deg_to_rad(config.pitch_min_deg),
 		deg_to_rad(config.pitch_max_deg))
 	apply_view()
