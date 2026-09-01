@@ -9,13 +9,17 @@ extends CanvasLayer
 
 const LISTEN_LABEL := "press a key…"
 
+## Matches BotDirector.PROFILE_PATHS, and the display_name in each .tres.
+const DIFFICULTY_NAMES: Array[String] = ["Recruit", "Regular", "Veteran"]
+
 var _root: Control
 var _rows: Dictionary = {}
 var _sensitivity_value: Label
 var _listening_action: StringName = &""
 var _listening_button: Button
-## Looked up by path: the headless test suites run a custom SceneTree, which
-## does not create autoloads, and the menu must not take the level down with it.
+## Looked up by path and treated as optional: an absolute path only resolves
+## once this node is in the tree, and a menu missing its settings must degrade
+## rather than take the level down with it.
 var _settings: Node
 
 func _ready() -> void:
@@ -145,6 +149,15 @@ func _build() -> void:
 			"%d%%"))
 	column.add_child(_build_sensitivity_row())
 	column.add_child(HSeparator.new())
+	column.add_child(_build_stepper_row("Bots", 0, 12,
+			func() -> int: return _settings.bot_count,
+			func(v: int) -> void: _settings.set_bot_count(v),
+			func(v: int) -> String: return "None" if v == 0 else str(v)))
+	column.add_child(_build_stepper_row("Bot skill", 0, 2,
+			func() -> int: return _settings.bot_difficulty,
+			func(v: int) -> void: _settings.set_bot_difficulty(v),
+			func(v: int) -> String: return DIFFICULTY_NAMES[v]))
+	column.add_child(HSeparator.new())
 
 	var hint := Label.new()
 	hint.text = "Click a binding, then press the key or mouse button you want."
@@ -167,6 +180,49 @@ func _build() -> void:
 
 	column.add_child(HSeparator.new())
 	column.add_child(_build_buttons())
+
+## Two arrows and a readout, for the settings that are a short list rather than
+## a range. A slider for three difficulty tiers gives you a bar you have to
+## aim at to read a word off; a stepper gives you the word.
+func _build_stepper_row(label_text: String, minimum: int, maximum: int,
+		read_back: Callable, on_change: Callable, format: Callable) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(170, 0)
+	label.add_theme_font_size_override("font_size", 14)
+	row.add_child(label)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
+
+	var down := Button.new()
+	down.text = "<"
+	down.custom_minimum_size = Vector2(34, 0)
+	row.add_child(down)
+
+	var readout := Label.new()
+	readout.custom_minimum_size = Vector2(96, 0)
+	readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	readout.add_theme_font_size_override("font_size", 14)
+	readout.text = format.call(read_back.call())
+	row.add_child(readout)
+
+	var up := Button.new()
+	up.text = ">"
+	up.custom_minimum_size = Vector2(34, 0)
+	row.add_child(up)
+
+	var step := func(direction: int) -> void:
+		var value: int = clampi(int(read_back.call()) + direction, minimum, maximum)
+		on_change.call(value)
+		readout.text = format.call(value)
+	down.pressed.connect(step.bind(-1))
+	up.pressed.connect(step.bind(1))
+	return row
 
 ## Generic labelled slider, so volume and sensitivity stay one implementation.
 func _build_slider_row(label_text: String, minimum: float, maximum: float,

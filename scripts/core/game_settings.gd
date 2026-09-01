@@ -13,6 +13,9 @@ extends Node
 signal binding_changed(action: StringName)
 signal sensitivity_changed(scale: float)
 signal volume_changed(linear: float)
+## The bot roster changed. [BotDirector] listens rather than polling, so the
+## setting takes effect the moment the slider moves.
+signal match_settings_changed()
 
 const SETTINGS_PATH := "user://settings.cfg"
 
@@ -41,6 +44,20 @@ const REBINDABLE: Array = [
 var mouse_sensitivity_scale: float = 1.0
 ## Master output, 0..1 linear.
 var master_volume: float = 0.7
+
+## How many bots the match should contain, and how good they are (0 easy,
+## 1 normal, 2 hard).
+##
+## Kept here rather than on the level so it survives a scene reload and, in
+## Milestone 5, so the lobby has one place to read a player's preferred match
+## setup from before handing it to the host.
+## Defaults to Recruit rather than Regular on purpose. Three Regular bots
+## delete a stationary player in about a second and a half, which is a fine
+## thing for them to be capable of and a terrible first thirty seconds. It is
+## one click away in the settings menu, and the tier is named in the menu so
+## turning it up is an obvious thing to do.
+var bot_count: int = 3
+var bot_difficulty: int = 0
 
 var _defaults: Dictionary = {}
 
@@ -76,6 +93,9 @@ func reset_all() -> void:
 	mouse_sensitivity_scale = 1.0
 	sensitivity_changed.emit(mouse_sensitivity_scale)
 	set_master_volume(0.7)
+	bot_count = 3
+	bot_difficulty = 0
+	match_settings_changed.emit()
 
 func set_master_volume(value: float) -> void:
 	master_volume = clampf(value, 0.0, 1.0)
@@ -91,6 +111,16 @@ func _apply_volume() -> void:
 		return
 	AudioServer.set_bus_mute(0, false)
 	AudioServer.set_bus_volume_db(0, linear_to_db(master_volume))
+
+func set_bot_count(value: int) -> void:
+	bot_count = clampi(value, 0, 12)
+	match_settings_changed.emit()
+	save_settings()
+
+func set_bot_difficulty(value: int) -> void:
+	bot_difficulty = clampi(value, 0, 2)
+	match_settings_changed.emit()
+	save_settings()
 
 func set_sensitivity_scale(value: float) -> void:
 	mouse_sensitivity_scale = clampf(value, 0.1, 5.0)
@@ -138,6 +168,8 @@ func save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("input", "sensitivity_scale", mouse_sensitivity_scale)
 	config.set_value("audio", "master_volume", master_volume)
+	config.set_value("match", "bot_count", bot_count)
+	config.set_value("match", "bot_difficulty", bot_difficulty)
 	for entry in REBINDABLE:
 		var action: StringName = entry[0]
 		if not InputMap.has_action(action):
@@ -156,6 +188,8 @@ func load_settings() -> void:
 		return  # No settings yet; project defaults stand.
 	mouse_sensitivity_scale = float(config.get_value("input", "sensitivity_scale", 1.0))
 	master_volume = float(config.get_value("audio", "master_volume", 0.7))
+	bot_count = clampi(int(config.get_value("match", "bot_count", 3)), 0, 12)
+	bot_difficulty = clampi(int(config.get_value("match", "bot_difficulty", 0)), 0, 2)
 	_apply_volume()
 	for entry in REBINDABLE:
 		var action: StringName = entry[0]

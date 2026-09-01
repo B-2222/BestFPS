@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/levels/arena_builder.gd" id="1_arena"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
@@ -6,12 +6,16 @@
 [ext_resource type="Script" path="res://scripts/ui/capture_prompt.gd" id="4_prompt"]
 [ext_resource type="Script" path="res://scripts/ui/combat_hud.gd" id="5_combat"]
 [ext_resource type="Script" path="res://scripts/ui/settings_menu.gd" id="6_settings"]
+[ext_resource type="Script" path="res://scripts/bots/bot_director.gd" id="7_bots"]
 
 [node name="TestArena" type="Node3D"]
 script = ExtResource("1_arena")
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="BotDirector" type="Node3D" parent="."]
+script = ExtResource("7_bots")
 
 [node name="DebugHUD" type="CanvasLayer" parent="."]
 script = ExtResource("3_hud")
