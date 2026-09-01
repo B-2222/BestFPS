@@ -119,11 +119,6 @@ func _build_ui() -> void:
 	_graph.custom_minimum_size = Vector2(220, 68)
 	column.add_child(_graph)
 
-	var crosshair := Crosshair.new()
-	crosshair.set_anchors_preset(Control.PRESET_FULL_RECT)
-	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(crosshair)
-
 	_hint = Label.new()
 	_hint.text = "WASD move   Space jump   Shift sprint   Ctrl crouch (sprint+crouch = slide)   R respawn   Esc free mouse"
 	_hint.add_theme_font_size_override("font_size", 12)
@@ -179,25 +174,3 @@ class SpeedGraph:
 			points.append(Vector2(x, y))
 		if points.size() > 1:
 			draw_polyline(points, Color(0.45, 0.85, 1.0), 1.5, true)
-
-## Minimal four-tick crosshair. Weapons arrive in Milestone 2; until then this
-## is here so the eye has a fixed point to judge camera bob against.
-class Crosshair:
-	extends Control
-
-	func _ready() -> void:
-		# Anchored full-rect, so its centre moves with the window. Control does
-		# not redraw on resize by itself.
-		resized.connect(queue_redraw)
-
-	func _draw() -> void:
-		var centre := size * 0.5
-		var gap := 4.0
-		var length := 7.0
-		var thickness := 2.0
-		var color := Color(1, 1, 1, 0.85)
-		draw_line(centre + Vector2(0, -gap), centre + Vector2(0, -gap - length), color, thickness)
-		draw_line(centre + Vector2(0, gap), centre + Vector2(0, gap + length), color, thickness)
-		draw_line(centre + Vector2(-gap, 0), centre + Vector2(-gap - length, 0), color, thickness)
-		draw_line(centre + Vector2(gap, 0), centre + Vector2(gap + length, 0), color, thickness)
-		draw_rect(Rect2(centre - Vector2(1, 1), Vector2(2, 2)), color, true)

@@ -129,8 +129,36 @@ func fill_command(cmd: InputCommand, _delta: float) -> void:
 	cmd.crouch_pressed = Input.is_action_just_pressed(&"crouch")
 	cmd.crouch_held = Input.is_action_pressed(&"crouch")
 	cmd.sprint_held = Input.is_action_pressed(&"sprint")
+
+	cmd.fire_pressed = Input.is_action_just_pressed(&"fire")
+	cmd.fire_held = Input.is_action_pressed(&"fire")
+	cmd.reload_pressed = Input.is_action_just_pressed(&"reload")
+	cmd.aim_held = Input.is_action_pressed(&"aim")
+	cmd.weapon_slot = _requested_slot()
+
 	cmd.yaw = _controller.yaw
 	cmd.pitch = _controller.pitch
+
+## An absolute slot, or -1 for "no change". Wheel scrolling is resolved to a
+## slot here rather than sent as a relative pulse, so a dropped packet cannot
+## leave the server holding a different weapon than the client is drawing.
+func _requested_slot() -> int:
+	for slot in range(1, 5):
+		if Input.is_action_just_pressed(&"weapon_%d" % slot):
+			return slot
+	var controller := _controller.weapons
+	if controller == null or controller.runtimes.size() <= 1:
+		return -1
+	var step := 0
+	if Input.is_action_just_pressed(&"weapon_next"):
+		step = 1
+	elif Input.is_action_just_pressed(&"weapon_prev"):
+		step = -1
+	if step == 0:
+		return -1
+	var count := controller.runtimes.size()
+	var index := posmod(controller.current_index + step, count)
+	return controller.runtimes[index].resource.slot
 
 func _window_has_focus() -> bool:
 	# Headless has no window. On the web the browser only delivers key events to

@@ -117,6 +117,11 @@ func _apply_bob(speed: float) -> Vector3:
 # --- landing ---------------------------------------------------------------
 
 func _on_landed(impact_speed: float) -> void:
+	# The player can land before our first _process runs, and the config is
+	# resolved there (children are readied before parents). A landing we cannot
+	# scale yet is simply one we skip.
+	if _config == null:
+		return
 	_land_velocity += impact_speed * _config.view_land_dip_scale * 60.0
 
 ## Damped spring rather than a tween: impulses from successive landings add up
@@ -164,4 +169,9 @@ func _update_fov(speed: float, sliding: bool, delta: float) -> void:
 	target += _config.view_fov_speed_add * clampf((speed - _config.walk_speed) / span, 0.0, 1.0)
 	if sliding:
 		target += _config.view_fov_slide_add
+	# Aiming pulls the FOV in. Subtracted last so it wins over the speed
+	# bonus -- otherwise sprinting while aiming would widen the sight picture,
+	# which is the opposite of what the player asked for.
+	if _controller.is_aiming:
+		target -= _controller.aim_fov_reduction
 	_fov = lerpf(_fov, target, 1.0 - exp(-delta * _config.view_fov_blend))

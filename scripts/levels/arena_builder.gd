@@ -63,6 +63,7 @@ func build() -> void:
 	_build_slide_slope()
 	_build_crouch_tunnel()
 	_build_pillars()
+	_build_shooting_range()
 
 # ---------------------------------------------------------------------------
 # Materials
@@ -366,6 +367,51 @@ func _build_crouch_tunnel() -> void:
 	_box("TunnelWallB", Vector3(length, 2.4, 0.5), Vector3(x, 1.2, z + 2.25), _mat_slide)
 	_heading("CROUCH TUNNEL %.2f m" % clearance, Vector3(x + length * 0.5 + 2.0, 2.2, z),
 			Color(0.8, 0.7, 1))
+
+## Targets at measured distances, so damage falloff and time-to-kill can be
+## read off the range rather than guessed at. Each dummy shows its own health,
+## and one strafes for tracking practice -- and, in Milestone 5, for testing
+## lag compensation against a hitbox that is actually moving.
+##
+## Runs east along the clear strip by the north wall. The obvious spot -- next
+## to the slide slope -- looked fine and was not: the slope's landing platform
+## sits exactly on the sightline to the far target, so every "45 m" shot
+## actually stopped at 30 m and quietly reported full damage.
+func _build_shooting_range() -> void:
+	var firing_x := -36.0
+	var lane_z := -32.0
+
+	_heading("SHOOTING RANGE", Vector3(firing_x + 6.0, 3.4, lane_z), Color(1, 0.75, 0.45))
+	_box("FiringLine", Vector3(0.25, 0.04, 8.0),
+			Vector3(firing_x, 0.02, lane_z), _mat_step)
+
+	# distance, lateral offset. Offsets alternate sides and widen so that the
+	# sightline to a far target clears every nearer one by at least a metre --
+	# in a straight line the closest dummy eats every shot behind it.
+	# Depth is reduced to compensate for the offset, so each dummy stands at
+	# exactly its labelled distance rather than slightly further.
+	for placement in [[10.0, -3.0], [20.0, 4.0], [30.0, -5.0], [45.0, 6.0]]:
+		var distance: float = placement[0]
+		var offset: float = placement[1]
+		var depth := sqrt(maxf(distance * distance - offset * offset, 0.0))
+		var dummy := TargetDummy.new()
+		dummy.name = "Target%dm" % int(distance)
+		dummy.position = Vector3(firing_x + depth, 0.0, lane_z + offset)
+		_geometry_root.add_child(dummy)
+		_label("%d m" % int(distance),
+				Vector3(firing_x + depth, 0.55, lane_z + offset + 1.2),
+				Color(1, 0.85, 0.6))
+
+	# Placed beyond the fixed targets and on the centre line, so nothing can
+	# block it and it blocks nothing.
+	var mover := TargetDummy.new()
+	mover.name = "TargetMoving"
+	mover.position = Vector3(firing_x + 55.0, 0.0, lane_z)
+	mover.patrol_range = 4.0
+	mover.patrol_speed = 6.0
+	mover.patrol_axis = Vector3.BACK
+	_geometry_root.add_child(mover)
+	_label("moving  55 m", Vector3(firing_x + 55.0, 2.55, lane_z), Color(0.7, 0.9, 1))
 
 ## Something to strafe around. Tight enough spacing that turning while keeping
 ## speed actually costs something.

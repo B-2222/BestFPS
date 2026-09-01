@@ -7,8 +7,9 @@ gunplay and bots — in that order.
 
 [![Web build](https://github.com/B-2222/BestFPS/actions/workflows/web.yml/badge.svg)](https://github.com/B-2222/BestFPS/actions/workflows/web.yml)
 
-**Current state: Milestone 1 — movement only.** No weapons, no enemies, no
-sound. That is deliberate; see [ROADMAP.md](ROADMAP.md).
+**Current state: Milestone 2 in progress — movement and the first weapon.**
+One rifle, a shooting range with targets at measured distances, and no enemies
+that shoot back yet. See [ROADMAP.md](ROADMAP.md).
 
 ![The movement test arena](docs/images/test-arena.png)
 
@@ -83,7 +84,11 @@ verified in CI, and the browser build above is always current.
 | `Shift` | Sprint |
 | `Ctrl` / `C` | Crouch (hold) |
 | `Shift` + `Ctrl` while moving | Slide |
-| `R` | Respawn at spawn point |
+| Left mouse | Fire |
+| Right mouse | Aim down sights |
+| `R` | Reload |
+| `1`–`4` / wheel | Switch weapon |
+| `Backspace` | Respawn at spawn point |
 | `F3` | Toggle the tuning HUD |
 | `F1` | Slide on/off (try both — see below) |
 | `F2` | Auto bunny-hop on/off (try both — see below) |
@@ -99,6 +104,17 @@ ramps either side of the walkable angle, gaps from 2 m to 6 m.
 **If you only do one thing:** press F3 and work through the ten tests in
 [docs/movement-tuning.md](docs/movement-tuning.md).
 
+### The shooting range
+
+Along the north wall. Targets at 10, 20, 30 and 45 m, fanned sideways so the
+near one does not block the far ones, plus a strafing target at 55 m. Each
+dummy shows its own health, has an orange head worth 2.2x damage, and revives
+three seconds after it goes down.
+
+The crosshair gap is the **real spread cone** converted to pixels, so it shows
+exactly where a bullet can land — it grows while you move and while you hold
+the trigger, and shrinks when you aim.
+
 ## Tuning it yourself
 
 Open `assets/config/player_default.tres` in the inspector and edit values **while
@@ -111,9 +127,16 @@ one resource. Full guide: [docs/movement-tuning.md](docs/movement-tuning.md).
 godot --headless --path . --script scripts/tests/movement_smoke_test.gd
 ```
 
-18 behavioural checks — top speed, deceleration, jump apex against
-`v²/2g`, stair climb and descent, the step-height limit, crouch, and slide.
-Exits non-zero on failure, ready to wire into CI.
+```
+godot --headless --path . --script scripts/tests/combat_smoke_test.gd
+```
+
+42 behavioural checks across the two suites. Movement: top speed,
+deceleration, jump apex against `v²/2g`, stair climb and descent, the
+step-height limit, crouch, slide, and the bunny-hop speed bounds. Combat: fire
+rate, damage, falloff, headshot reward, time-to-kill, reload, recoil recovery,
+and that spread is reproducible from the command tick. Both exit non-zero on
+failure.
 
 Feel is not testable and has to be judged by hand. These cover the things that
 *are* objective and that break silently when a tuning value is edited.
@@ -140,3 +163,5 @@ docs/     engine choice, architecture, tuning guide
   expensive to reverse
 - **[docs/movement-tuning.md](docs/movement-tuning.md)** — what every dial does
   and how to test it
+- **[docs/networking-decision.md](docs/networking-decision.md)** — the
+  multiplayer model, and what it forces on the weapon code today

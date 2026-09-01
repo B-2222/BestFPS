@@ -37,9 +37,24 @@ var jump_held: bool = false
 var crouch_held: bool = false
 var sprint_held: bool = false
 
-## Monotonic tick counter. Unused in Milestone 1; it is the acknowledgement key
-## the netcode will need, and costs nothing to carry now.
+## Monotonic tick counter. The acknowledgement key the netcode needs, and --
+## from Milestone 2 on -- the seed source for deterministic weapon spread, so
+## the client and server independently compute the same pellet directions.
 var tick: int = 0
+
+# --- combat (Milestone 2) --------------------------------------------------
+
+## Edge-triggered: semi-automatic weapons fire on this.
+var fire_pressed: bool = false
+## Level-triggered: automatic weapons fire while this is held.
+var fire_held: bool = false
+var reload_pressed: bool = false
+var aim_held: bool = false
+
+## Requested weapon slot, or -1 for "no change". An absolute slot rather than a
+## "next weapon" pulse, because a dropped or reordered packet must not leave the
+## server holding a different weapon than the client is drawing.
+var weapon_slot: int = -1
 
 func clear() -> void:
 	move_axis = Vector2.ZERO
@@ -48,12 +63,20 @@ func clear() -> void:
 	crouch_pressed = false
 	crouch_held = false
 	sprint_held = false
+	fire_pressed = false
+	fire_held = false
+	reload_pressed = false
+	aim_held = false
+	weapon_slot = -1
 
 ## Consume edge-triggered inputs. Called once per tick, after the movement
 ## code has had its chance to see them.
 func clear_one_shots() -> void:
 	jump_pressed = false
 	crouch_pressed = false
+	fire_pressed = false
+	reload_pressed = false
+	weapon_slot = -1
 
 func duplicate_command() -> InputCommand:
 	var c := InputCommand.new()
@@ -65,5 +88,10 @@ func duplicate_command() -> InputCommand:
 	c.crouch_pressed = crouch_pressed
 	c.crouch_held = crouch_held
 	c.sprint_held = sprint_held
+	c.fire_pressed = fire_pressed
+	c.fire_held = fire_held
+	c.reload_pressed = reload_pressed
+	c.aim_held = aim_held
+	c.weapon_slot = weapon_slot
 	c.tick = tick
 	return c

@@ -4,14 +4,15 @@ Milestones are ordered by your pillars, with one deliberate exception explained
 in M2. Every milestone ends in something you can launch and play — if a
 milestone cannot be played, it is too big and needs splitting.
 
-**Current position: M1 signed off. M2 is next.** Movement was playtested and
-accepted; the two identity decisions it was blocking on are now made.
+**Current position: M2 in progress.** Movement is signed off. The weapon
+architecture, the first weapon and the shooting range are in and testable; the
+remaining three weapons are next.
 
 | | Milestone | State |
 |---|---|---|
 | M0 | Foundations | Done |
 | M1 | Movement and feel | Done — signed off |
-| M2 | Gunplay + networking spike | **Next** |
+| M2 | Gunplay + networking spike | **In progress** — rifle done, spike done |
 | M3 | Bots | Not started |
 | M4 | The arena | Not started |
 | M5 | Multiplayer | Not started |
@@ -122,6 +123,23 @@ are genuinely distinct.
 - Shooting a target dummy in the test arena is satisfying without any HUD
 - The four weapons feel different from each other in the hand, not on a stat card
 - TTK is written down and deliberate, not emergent
+
+### Delivered so far
+
+- Networking decision, written up as [docs/networking-decision.md](docs/networking-decision.md)
+- Weapon architecture: weapons are `.tres` data over one runtime, so the
+  remaining three are numbers and a model rather than new classes
+- Hitscan with deterministic, tick-seeded spread; damage falloff; an authored
+  recoil pattern that moves the real aim and then recovers
+- Health, hitboxes on their own physics layer, and per-tick hitbox history
+- A shooting range with targets at measured distances
+- Tracers, impacts, damage numbers, hit markers, and a crosshair that shows
+  the true spread cone
+- 20 combat checks in CI, gating the deploy
+
+Rifle baseline: 22 damage, 2.2x on the head, 600 rpm — **5 body shots and
+0.40 s to kill**, or 3 headshots. The other three weapons get tuned against
+that number rather than in isolation.
 
 ### The networking spike *(the deliberate exception to pillar order)*
 

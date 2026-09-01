@@ -73,8 +73,13 @@ jobs:
           test -f .godot/global_script_class_cache.cfg
 
       - name: Movement smoke test
-        # Gates the deploy. 18 behavioural checks; exits non-zero on failure.
+        # Gates the deploy. 22 behavioural checks; exits non-zero on failure.
         run: godot --headless --script scripts/tests/movement_smoke_test.gd
+
+      - name: Combat smoke test
+        # 20 checks: fire rate, damage, falloff, headshot reward, TTK, reload,
+        # and that spread is reproducible from the command tick.
+        run: godot --headless --script scripts/tests/combat_smoke_test.gd
 
       - name: Export web build
         run: |

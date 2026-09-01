@@ -49,6 +49,7 @@ const MIN_HULL_HEIGHT := 0.2
 ## Authoritative aim origin. Never receives bob, dip or tilt -- see
 ## [CameraRig] for why weapons must not fire from the rendered camera.
 @onready var aim_point: Marker3D = $Head/AimPoint
+@onready var weapons: WeaponController = get_node_or_null(^"WeaponController")
 
 var machine: StateMachine
 var cmd: InputCommand
@@ -65,6 +66,26 @@ var slide_cooldown_left: float = 0.0
 
 var yaw: float = 0.0
 var pitch: float = 0.0
+
+## Weapon recoil, in radians (x = yaw, y = pitch), added on top of the player's
+## own aim.
+##
+## Kept separate from [member yaw] and [member pitch] rather than folded into
+## them, because the player is simultaneously fighting it: if recoil wrote
+## directly to the aim angles, the recovery drift and the player's own
+## downward mouse compensation would cancel each other and the gun would feel
+## like it was fighting the mouse. Keeping them apart means aim is always
+## exactly what the player asked for, and recoil is a separate offset that
+## decays on its own.
+##
+## Applied to the *head*, not the body, so the barrel and the view move while
+## the movement direction does not -- recoil should not steer you.
+var recoil_offset: Vector2 = Vector2.ZERO
+
+## Set by [WeaponController]: heavier weapons and aiming down sights slow you.
+var speed_multiplier: float = 1.0
+var is_aiming: bool = false
+var aim_fov_reduction: float = 0.0
 
 ## Accumulated stair pop the camera has not smoothed away yet.
 var pending_step: float = 0.0
@@ -143,7 +164,13 @@ func _physics_process(delta: float) -> void:
 
 	_update_wish_dir()
 
+	# Weapons before movement, so a speed penalty from aiming applies on the
+	# same tick the player asked for it rather than one tick late.
+	if weapons != null:
+		weapons.tick(cmd, delta)
+
 	machine.update(cmd, delta)
+	apply_view()
 
 	_update_height(delta)
 	_step_up(delta)
@@ -166,10 +193,31 @@ func apply_look(mouse_delta: Vector2) -> void:
 		pitch - mouse_delta.y * config.mouse_sensitivity,
 		deg_to_rad(config.pitch_min_deg),
 		deg_to_rad(config.pitch_max_deg))
-	rotation.y = yaw
-	head.rotation.x = pitch
+	apply_view()
 	cmd.yaw = yaw
 	cmd.pitch = pitch
+
+## Push aim and recoil onto the transforms. Called from the mouse event for
+## latency, and every physics tick so recoil changes land without the caller
+## having to remember.
+func apply_view() -> void:
+	rotation.y = yaw
+	head.rotation.y = recoil_offset.x
+	head.rotation.x = clampf(pitch + recoil_offset.y,
+			deg_to_rad(config.pitch_min_deg), deg_to_rad(config.pitch_max_deg))
+
+## [param kick_degrees]: x horizontal, y vertical (positive kicks the view up).
+func apply_recoil(kick_degrees: Vector2) -> void:
+	recoil_offset.x += deg_to_rad(kick_degrees.x)
+	recoil_offset.y += deg_to_rad(kick_degrees.y)
+	apply_view()
+
+## Drift the accumulated recoil back toward zero by [param amount_radians].
+func recover_recoil(amount_radians: float) -> void:
+	if recoil_offset == Vector2.ZERO:
+		return
+	recoil_offset = recoil_offset.move_toward(Vector2.ZERO, amount_radians)
+	apply_view()
 
 ## World-space transform weapons should fire from. Explicitly not the camera:
 ## bob and recoil move the camera for feel, and if shots originated there the
@@ -241,7 +289,7 @@ func get_target_speed(cmd_in: InputCommand) -> float:
 	elif cmd_in.sprint_held:
 		if not config.sprint_forward_only or cmd_in.move_axis.y > 0.1:
 			speed = config.sprint_speed
-	return speed * wish_scale
+	return speed * wish_scale * speed_multiplier
 
 func get_horizontal_speed() -> float:
 	return Vector2(velocity.x, velocity.z).length()
@@ -397,8 +445,8 @@ func respawn() -> void:
 
 	yaw = _spawn_transform.basis.get_euler().y
 	pitch = 0.0
-	rotation.y = yaw
-	head.rotation.x = pitch
+	recoil_offset = Vector2.ZERO
+	apply_view()
 	cmd.yaw = yaw
 	cmd.pitch = pitch
 
