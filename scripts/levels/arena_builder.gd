@@ -37,7 +37,10 @@ var _mat_slide: StandardMaterial3D
 ## viewport.
 @export var build_in_editor: bool = false
 
-var _geometry_root: Node3D
+## The blockout root is a NavigationRegion3D so the bots in Milestone 3 can be
+## given a navigation mesh baked from the same geometry the player collides
+## with -- one source of truth for "where can something stand".
+var _geometry_root: NavigationRegion3D
 
 func _ready() -> void:
 	if Engine.is_editor_hint() and not build_in_editor:
@@ -47,7 +50,7 @@ func _ready() -> void:
 func build() -> void:
 	if _geometry_root != null and is_instance_valid(_geometry_root):
 		_geometry_root.queue_free()
-	_geometry_root = Node3D.new()
+	_geometry_root = NavigationRegion3D.new()
 	_geometry_root.name = "Blockout"
 	add_child(_geometry_root)
 
@@ -64,10 +67,39 @@ func build() -> void:
 	_build_crouch_tunnel()
 	_build_pillars()
 	_build_shooting_range()
+	_bake_navigation()
 
 # ---------------------------------------------------------------------------
 # Materials
 # ---------------------------------------------------------------------------
+
+## Bake the navigation mesh from the static colliders we just built.
+##
+## Baked at runtime rather than saved, because the geometry is generated at
+## runtime -- there is nothing to bake in the editor. Parsing static colliders
+## on the world layer rather than mesh instances keeps the labels, the target
+## dummies and their hitbox Areas out of it: a bot should navigate the same
+## surfaces the player collides with, not the decoration.
+##
+## The agent parameters deliberately mirror the player's own hull and limits,
+## so anywhere a bot is told it can walk, a player could walk too.
+func _bake_navigation() -> void:
+	var mesh := NavigationMesh.new()
+	mesh.agent_radius = 0.4
+	mesh.agent_height = 1.8
+	mesh.agent_max_climb = 0.35   # PlayerConfig.max_step_height
+	mesh.agent_max_slope = 46.0   # PlayerConfig.floor_max_angle_deg
+	# Both are rounded to voxel units at bake time, so they are chosen to land
+	# exactly on a multiple: 0.35 climb is 7 cells of 0.05, and 0.4 radius is
+	# 2 cells of 0.2. Left at coarser values, max_climb floors to 0.30 and the
+	# 0.35 m staircases silently become unnavigable for bots but not players.
+	mesh.cell_size = 0.2
+	mesh.cell_height = 0.05
+	mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	mesh.geometry_collision_mask = 1  # world only
+	mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_ROOT_NODE_CHILDREN
+	_geometry_root.navigation_mesh = mesh
+	_geometry_root.bake_navigation_mesh(false)
 
 ## A 1 m world-space grid on everything. This is not decoration: without a
 ## regular reference you cannot perceive speed, and "does this feel fast?" is

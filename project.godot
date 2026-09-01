@@ -147,6 +147,18 @@ weapon_prev={
 3d_physics/layer_6="trigger"
 3d_physics/layer_7="debris"
 
+[navigation]
+
+; Must match the NavigationMesh baked in arena_builder.gd. A region whose cell
+; size differs from its map's is rejected outright -- it bakes fine and then
+; silently never registers, so every path query returns nothing.
+3d/default_cell_size=0.2
+3d/default_cell_height=0.05
+; The blockout is built from overlapping boxes -- stairs into each other, walls
+; into the floor -- which makes the rasteriser try to merge edges that cross.
+; This is the engine's own suggested remedy for that case.
+3d/merge_rasterizer_cell_scale=0.001
+
 [physics]
 
 common/physics_ticks_per_second=120

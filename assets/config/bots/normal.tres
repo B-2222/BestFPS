@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="BotProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/bots/bot_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Regular"
+vision_range = 55.0
+view_cone_degrees = 140.0
+hearing_range = 45.0
+memory_seconds = 6.0
+reaction_time = 0.34
+aim_speed = 5.0
+aim_error_degrees = 2.6
+aim_error_moving = 2.4
+burst_min = 3
+burst_max = 6
+burst_pause_min = 0.3
+burst_pause_max = 0.75
+preferred_range = 16.0
+range_tolerance = 6.0
+aggression = 0.5
+retreat_health = 0.3
+weapon_slot = 1
