@@ -11,6 +11,10 @@ extends RefCounted
 var amount: float = 0.0
 ## Attacker's [Health]-owning node. Null for world damage such as fall damage.
 var source: Node = null
+## Who was hit. Recorded so a kill feed does not have to work backwards from a
+## hitbox to a character, and so a future scoreboard can tell a kill from a
+## suicide without a second lookup.
+var victim: Node = null
 var weapon_id: StringName = &""
 ## Which hitbox resolved this, e.g. &"head". Drives the multiplier and the
 ## headshot hit marker.

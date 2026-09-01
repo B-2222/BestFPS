@@ -35,10 +35,22 @@ var is_aiming: bool = false
 var _player: PlayerController
 var _fx: CombatFx
 var _hz: float = 120.0
+## Whether this controller's shots draw floating damage numbers.
+##
+## They are feedback for whoever pulled the trigger, and CombatFx draws them in
+## the world, so a bot shooting you spawns one on your own chest -- a metre from
+## the camera, filling half the screen. Tracers, impacts and bullet holes stay
+## on for everyone: those are things that actually happened in the world.
+##
+## Keyed off the "player" group for now. In Milestone 5 this becomes "is this
+## the locally controlled character", which is the same question with more
+## candidates.
+var _shows_damage_numbers: bool = false
 
 func _ready() -> void:
 	_player = get_node(player_path) as PlayerController
 	_hz = float(Engine.physics_ticks_per_second)
+	_shows_damage_numbers = _player.is_in_group(&"player")
 
 	if loadout.is_empty():
 		for path in DEFAULT_LOADOUT:
@@ -163,6 +175,10 @@ func _fire(cmd: InputCommand, rt: WeaponRuntime) -> void:
 	# off-by-one that quietly corrupts a TTK readout.
 	fired.emit(res)
 	ammo_changed.emit(rt.magazine, rt.reserve)
+	# Gunfire is the loudest thing in the game and the main reason a bot ever
+	# learns where you are without seeing you. Announced from the shooter's
+	# position, not the impact: a bot should investigate the shooter.
+	NoiseEvent.emit(get_tree(), _player.global_position, res.noise_loudness, _player)
 
 	var origin: Vector3 = _player.aim_point.global_position
 	var forward: Vector3 = -_player.aim_point.global_transform.basis.z
@@ -196,7 +212,8 @@ func _trace_pellet(cmd: InputCommand, rt: WeaponRuntime,
 	var destination := origin + direction * res.max_range
 
 	var query := PhysicsRayQueryParameters3D.create(
-			origin, destination, Ballistics.TRACE_MASK, [_player.get_rid()])
+			origin, destination, Ballistics.TRACE_MASK,
+			_player.get_trace_exclusions())
 	query.collide_with_areas = true   # hitboxes are Areas
 	query.collide_with_bodies = true  # world geometry is not
 	var hit := space.intersect_ray(query)
@@ -226,9 +243,11 @@ func _trace_pellet(cmd: InputCommand, rt: WeaponRuntime,
 	info.normal = normal
 	info.distance = origin.distance_to(point)
 	info.tick = cmd.tick
+	info.victim = hitbox.health.get_parent() if hitbox.health != null else null
 
 	_fx.impact(point, normal, true)
-	_fx.damage_number(point, info.amount, info.is_headshot)
+	if _shows_damage_numbers:
+		_fx.damage_number(point, info.amount, info.is_headshot)
 	hit_confirmed.emit(info)
 
 	if hitbox.health == null:

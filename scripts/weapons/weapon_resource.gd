@@ -88,6 +88,12 @@ extends Resource
 @export var reload_seconds: float = 2.1
 @export var equip_seconds: float = 0.45
 
+## How far the shot carries to a listening bot, relative to their hearing
+## range. Not a volume: a suppressed weapon would drop this without becoming
+## quieter to the player, which is exactly the distinction the field exists to
+## make.
+@export_range(0.0, 2.0, 0.05) var noise_loudness: float = 1.0
+
 @export_group("Handling")
 ## Movement speed multiplier while this weapon is held.
 @export_range(0.1, 1.0, 0.01) var move_speed_multiplier: float = 1.0

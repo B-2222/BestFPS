@@ -37,6 +37,9 @@ const HEADROOM_MARGIN := 0.02
 const MIN_HULL_HEIGHT := 0.2
 ## Time to raise or lower sights.
 const AIM_BLEND_SECONDS := 0.18
+## Metres between footfalls, for the noise they make. Matches the audio
+## stride so what a bot hears and what the player hears are the same event.
+const NOISE_STRIDE := 2.15
 
 @export var config: PlayerConfig
 
@@ -46,6 +49,12 @@ const AIM_BLEND_SECONDS := 0.18
 ## losing that assignment would be a very quiet bug.
 @export var input_source_path: NodePath = ^"PlayerInput"
 
+## Render the hitboxes as the character's body. Off for the local player, whose
+## body is never seen, and on for bots -- where the honest thing is for the
+## visible shape and the shootable shape to be the same boxes, so a shot that
+## looks like a hit is one.
+@export var show_body: bool = false
+
 @onready var collider: CollisionShape3D = $Collider
 @onready var head: Node3D = $Head
 ## Authoritative aim origin. Never receives bob, dip or tilt -- see
@@ -53,6 +62,14 @@ const AIM_BLEND_SECONDS := 0.18
 @onready var aim_point: Marker3D = $Head/AimPoint
 @onready var weapons: WeaponController = get_node_or_null(^"WeaponController")
 @onready var view_model: Node3D = get_node_or_null(^"Head/CameraArm/ViewModel")
+@onready var health: Health = get_node_or_null(^"Health")
+
+## Own body and hitbox RIDs, excluded from our own weapon traces. Without this
+## the muzzle trace starts inside our own head hitbox and every shot kills the
+## shooter -- hitboxes are on a layer weapons deliberately do trace against.
+var _trace_exclusions: Array[RID] = []
+## True between dying and respawning; input is ignored while it holds.
+var is_dead: bool = false
 
 var machine: StateMachine
 var cmd: InputCommand
@@ -99,10 +116,18 @@ var aim_blend: float = 0.0
 ## Accumulated stair pop the camera has not smoothed away yet.
 var pending_step: float = 0.0
 
+## Distance walked since the last footfall was announced to listening bots.
+## Tracked here rather than in [AudioDirector] so that every character makes
+## noise, not just the ones with ears attached: bots have no audio node, and a
+## headless server has no audio at all.
+var _noise_distance: float = 0.0
+
 var _input_source: Node = null
-## The GameSettings autoload, looked up by path rather than by its global name.
-## A custom SceneTree (the headless test suites) does not get autoloads, so the
-## name would resolve at parse time and be null at runtime.
+## The GameSettings autoload, looked up by path rather than by its global name,
+## and treated as optional. Autoloads do exist under `--script`, but the lookup
+## still has to happen after this node is in the tree -- an absolute path from
+## outside the active tree fails outright -- and keeping it optional means a
+## scene instantiated on its own still runs.
 var _settings: Node = null
 var _input_source_assigned: bool = false
 var _hull: CylinderShape3D
@@ -155,6 +180,17 @@ func _ready() -> void:
 	machine.add_state(GroundedStateScript.new(self))
 	machine.add_state(AirStateScript.new(self))
 	machine.add_state(SlideStateScript.new(self))
+	# The local player renders no body -- nothing sees it in first person -- but
+	# still needs hitboxes, because bots have to be able to shoot back.
+	var own_hitboxes := CharacterHitboxes.build(self, show_body)
+	_trace_exclusions = [get_rid()]
+	for hitbox in own_hitboxes:
+		_trace_exclusions.append(hitbox.get_rid())
+
+	if health != null:
+		health.died.connect(_on_died)
+		health.revived.connect(_on_revived)
+
 	machine.state_changed.connect(_on_state_changed)
 	# Start airborne. If we spawned on the ground we land on tick one, which
 	# is one clean code path instead of two.
@@ -164,6 +200,10 @@ func _physics_process(delta: float) -> void:
 	if _input_source != null:
 		_input_source.fill_command(cmd, delta)
 	cmd.tick += 1
+	# A corpse does not act on its own inputs. Cleared here rather than in each
+	# input source, so this holds for bots and network peers too.
+	if is_dead:
+		cmd.clear()
 
 	_was_on_floor = is_on_floor()
 	if _was_on_floor:
@@ -175,6 +215,7 @@ func _physics_process(delta: float) -> void:
 	if cmd.jump_pressed or (config.auto_bhop and cmd.jump_held):
 		jump_buffer = config.jump_buffer_time
 	slide_cooldown_left = maxf(slide_cooldown_left - delta, 0.0)
+	_emit_footstep_noise(delta)
 
 	_update_wish_dir()
 
@@ -501,3 +542,44 @@ func respawn() -> void:
 
 func _on_state_changed(_from: StringName, to: StringName) -> void:
 	movement_state_changed.emit(to)
+
+## Everything a weapon trace fired by this character must ignore.
+func get_trace_exclusions() -> Array[RID]:
+	return _trace_exclusions
+
+## Move the point [method respawn] returns to. The bot director uses this to
+## relocate a bot before it revives, so kills do not turn a spawn point into a
+## place worth camping.
+func set_spawn_point(spawn: Transform3D) -> void:
+	_spawn_transform = spawn
+
+## Announce footfalls to anything listening.
+##
+## Driven by distance travelled rather than a timer, so the stride is the same
+## at every speed, and scaled by speed so that sprinting is loud, walking is
+## middling and crouching is nearly silent -- which is what makes crouching a
+## decision rather than just a way to fit through the tunnel.
+func _emit_footstep_noise(delta: float) -> void:
+	if not is_on_floor():
+		_noise_distance = 0.0
+		return
+	var speed := get_horizontal_speed()
+	if speed < 0.6:
+		return
+	_noise_distance += speed * delta
+	if _noise_distance < NOISE_STRIDE:
+		return
+	_noise_distance = 0.0
+	var effort := clampf(speed / maxf(config.sprint_speed, 0.001), 0.0, 1.0)
+	var loudness := lerpf(0.22, 0.55, effort)
+	if is_crouched:
+		loudness *= 0.35
+	NoiseEvent.emit(get_tree(), global_position, loudness, self)
+
+func _on_died(_info: DamageInfo) -> void:
+	is_dead = true
+	velocity = Vector3.ZERO
+
+func _on_revived() -> void:
+	is_dead = false
+	respawn()

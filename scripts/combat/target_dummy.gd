@@ -30,13 +30,6 @@ var _phase: float = 0.0
 var _flash: float = 0.0
 var _tick: int = 0
 
-const PARTS := [
-	# id, size, centre height, damage multiplier
-	[&"legs", Vector3(0.50, 0.90, 0.34), 0.45, 0.80],
-	[&"body", Vector3(0.62, 0.66, 0.34), 1.23, 1.00],
-	[&"head", Vector3(0.28, 0.28, 0.28), 1.70, 1.00],
-]
-
 func _ready() -> void:
 	_origin = position
 
@@ -44,13 +37,21 @@ func _ready() -> void:
 	health.name = "Health"
 	health.max_health = 100.0
 	health.auto_revive_after = 3.0
+	# No regeneration on the range. A dummy that healed between shots would
+	# make every damage and time-to-kill reading on the wall a lie.
+	health.regen_delay = 0.0
 	add_child(health)
 	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
 	health.revived.connect(_on_revived)
 
-	for part in PARTS:
-		_build_part(part[0], part[1], part[2], part[3])
+	# Shared with players and bots, so a headshot means the same thing on all
+	# three.
+	for hitbox in CharacterHitboxes.build(self, true):
+		var mesh: MeshInstance3D = hitbox.get_node_or_null(^"Mesh")
+		if mesh != null:
+			_parts.append(mesh)
+			_base_colors.append(CharacterHitboxes.base_color(hitbox.hitbox_id))
 
 	_label = Label3D.new()
 	_label.position = Vector3(0.0, 2.25, 0.0)
@@ -68,33 +69,6 @@ func _ready() -> void:
 	add_child(recorder)
 
 	_refresh_label()
-
-func _build_part(id: StringName, size: Vector3, height: float, multiplier: float) -> void:
-	var hitbox := Hitbox.new()
-	hitbox.name = String(id).capitalize() + "Hitbox"
-	hitbox.hitbox_id = id
-	hitbox.damage_multiplier = multiplier
-	hitbox.position = Vector3(0.0, height, 0.0)
-	add_child(hitbox)
-
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = size
-	shape.shape = box
-	hitbox.add_child(shape)
-
-	var mesh := MeshInstance3D.new()
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = size
-	mesh.mesh = box_mesh
-	var base := Color(0.92, 0.55, 0.20) if id == &"head" else Color(0.72, 0.74, 0.80)
-	var material := StandardMaterial3D.new()
-	material.albedo_color = base
-	material.roughness = 0.8
-	mesh.material_override = material
-	hitbox.add_child(mesh)
-	_parts.append(mesh)
-	_base_colors.append(base)
 
 func _physics_process(delta: float) -> void:
 	_tick += 1
