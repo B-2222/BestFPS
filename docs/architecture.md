@@ -8,13 +8,18 @@ code and can be changed when it annoys you.
 ```
 scenes/     player.tscn, test_arena.tscn
 scripts/
-  core/     engine-agnostic building blocks (state machine)
+  core/     engine-agnostic building blocks (state machine, settings)
   player/   controller, config, input, camera, movement states
+  weapons/  weapon data, runtime, controller, ballistics
+  combat/   health, hitboxes, damage, noise
+  bots/     profile, senses, brain, director, bot states
+  audio/    synthesised sound bank and the director that plays it
   levels/   the procedural test blockout
-  ui/       debug HUD
+  ui/       debug HUD, combat HUD, settings menu
   tests/    headless behavioural checks
-assets/     config/player_default.tres  (art lands here later)
-docs/       this, engine-choice.md, movement-tuning.md
+assets/     config/  player, weapons/*.tres, bots/*.tres
+docs/       this, engine-choice.md, movement-tuning.md,
+            networking-decision.md
 ```
 
 ---
@@ -185,3 +190,76 @@ a table are easier to trust and change than nodes dragged in a viewport. Every
 obstacle is labelled in-world with its dimension.
 
 M4 replaces it with a handcrafted map. This one is a tool, not a level.
+
+---
+
+## 10. Bots press buttons; they do not have powers
+
+A bot is a `PlayerController` with a `BotBrain` where the player has a
+`PlayerInput`. Both answer the same call:
+
+```gdscript
+func fill_command(cmd: InputCommand, delta: float) -> void
+```
+
+That is the whole integration. A bot has no private movement path, no direct
+call into `WeaponController`, and no way to make a shot happen that is not
+"set `fire_held` and wait for the weapon to be ready". The consequences are
+structural rather than a matter of discipline:
+
+- A bot accelerates, jumps, slides and bunny-hops on exactly the movement code
+  you do, because there is only one copy of it.
+- A bot cannot fire faster than the weapon's rate, skip a reload, or ignore
+  spread, because the weapon controller does not know or care who filled the
+  command.
+- Any weapon tuning change applies to bots on the same commit, with no second
+  place to update.
+- In M5 the same brain runs on a server that never renders it, and a replayed
+  network command and a bot's command are the same kind of thing.
+
+One consequence bites, and it is worth knowing about: the command is a value
+that lives on the controller between ticks, so a brain that only writes the
+fields it cares about leaves the rest set from last tick. `BotBrain` clears the
+command every tick before its states touch it. Without that, one shot fired
+leaves `fire_held` true forever and the bot shoots through walls in every fight
+afterwards — which is exactly what happened, and what the bot suite now
+watches for.
+
+### Fairness is the design, not a setting
+
+Everything a bot knows comes through `BotSenses`, and every channel into it is
+one a human also has: a view cone, a line-of-sight trace against world geometry
+only, hearing scaled by how loud the thing was, and a last-known position that
+expires. Difficulty is made out of reaction time, turn speed, aim error and
+burst discipline — never out of extra information.
+
+This is a deliberate rejection of the cheap way to make hard bots. Giving them
+perfect tracking and knowledge through walls is much less work and produces
+opponents that feel like cheats: you cannot learn to beat them, only to avoid
+them. Making difficulty out of human quantities means a hard bot is doing
+something you could learn to do too, and the counterplay — break line of sight,
+flank the cone, be quiet, strafe — is real counterplay rather than a trick.
+
+Those claims are testable, which is the point of stating them so precisely.
+`scripts/tests/bot_smoke_test.gd` asserts that a bot cannot see through a
+pillar and does not shoot at one, cannot see a target standing behind it,
+spends its reaction time before firing, hears gunfire but not from across the
+map, forgets a target it has lost, and fires no faster than its weapon allows.
+Fairness bugs are invisible by feel — losing to a bot that cheats feels exactly
+like losing to a good one — so they have to be caught by assertion.
+
+### Hunting a memory, not a position
+
+`BotHuntState` paths to `senses.last_known_position`, never to the target's
+live one. The distinction is the single clearest tell in AI: a bot that walks
+straight to where you actually are, through geometry it cannot see through, is
+visibly cheating. It also matters mechanically — breaking line of sight is
+most of what positioning is *for*, and it only means something if the bot can
+actually be lost.
+
+### Difficulty as data
+
+`BotProfile` is a `Resource`, so a tier is a `.tres` file and a new one is not
+a code change. `BotDirector` holds a reference rather than copying values out,
+which is why difficulty can be changed mid-match from the settings menu and
+takes effect on the next tick without respawning anyone.

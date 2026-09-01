@@ -7,9 +7,9 @@ gunplay and bots — in that order.
 
 [![Web build](https://github.com/B-2222/BestFPS/actions/workflows/web.yml/badge.svg)](https://github.com/B-2222/BestFPS/actions/workflows/web.yml)
 
-**Current state: Milestone 2 — movement and four weapons.** A shooting range
-with targets at measured distances, and no enemies that shoot back yet. See
-[ROADMAP.md](ROADMAP.md).
+**Current state: Milestone 3 — bots.** Movement, four weapons, a shooting range
+with targets at measured distances, and enemies that hunt you, take cover behind
+line of sight, and shoot back. See [ROADMAP.md](ROADMAP.md).
 
 ![The movement test arena](docs/images/test-arena.png)
 
@@ -90,6 +90,10 @@ verified in CI, and the browser build above is always current.
 | `1`–`4` / wheel | Switch weapon |
 | `Backspace` | Respawn at spawn point |
 
+Bots are on by default. Press `Esc` to change how many there are (0–12) and how
+good they are — **Recruit**, **Regular** or **Veteran**. Both take effect
+immediately, without restarting the level.
+
 Every binding in that table can be changed in the settings menu (`Esc`), and
 your choices persist between sessions. Master volume and mouse sensitivity are
 there too — both worth turning down on a laptop.
@@ -147,6 +151,45 @@ crosshair gap is the **real spread cone** converted to pixels, so it shows
 exactly where a bullet can land — it grows while you move and while you hold
 the trigger, and shrinks when you aim.
 
+## The bots
+
+Bots are a `PlayerController` with a `BotBrain` where you have a `PlayerInput`.
+Both answer the same call — `fill_command(cmd, delta)` — and that is the entire
+integration. A bot has no private movement path, no direct line into the weapon
+code, and no way to make a shot happen other than setting `fire_held` and
+waiting for the gun to be ready. So it accelerates, jumps, slides, reloads and
+misses on exactly the code you do.
+
+**Everything a bot knows, it could have learned like you.** It has a view cone,
+a line of sight traced against world geometry, ears that scale with how loud
+something was, and a memory of where you *were* that expires. Difficulty is made
+out of reaction time, turn speed, aim wobble and trigger discipline — never out
+of extra information. That is a deliberate choice: bots that see through walls
+are much less work and produce opponents you can only avoid, not beat.
+
+Which means the counterplay is real:
+
+| What you do | Why it works |
+|---|---|
+| Break line of sight | It hunts where you *were*, and walks there to look |
+| Flank the cone | It sees 110°–160° depending on tier, not 360° |
+| Crouch to move | Footsteps carry about a third as far |
+| Strafe across it | Aim error grows with your lateral speed |
+| Peek and re-peek | Reaction time is spent again on every re-acquire |
+| Push a hurt one | Below its threshold it gives ground, then commits |
+
+Three tiers in `assets/config/bots/*.tres` — Recruit, Regular, Veteran — and a
+new one is a file, not a code change. The roster carries a mix of rifles,
+shotguns and pistols, and a bot holds its weapon where you can see it, because
+"that one has a shotgun, do not let it close" should be a decision you can make
+before it closes.
+
+Health regenerates after six seconds out of contact. Without it one bad trade
+decides every fight for the rest of the session, and the game becomes about
+avoiding fights.
+
+Details and the reasoning: [docs/architecture.md](docs/architecture.md) §10.
+
 ## Tuning it yourself
 
 Open `assets/config/player_default.tres` in the inspector and edit values **while
@@ -163,25 +206,38 @@ godot --headless --path . --script scripts/tests/movement_smoke_test.gd
 godot --headless --path . --script scripts/tests/combat_smoke_test.gd
 ```
 
-42 behavioural checks across the two suites. Movement: top speed,
-deceleration, jump apex against `v²/2g`, stair climb and descent, the
-step-height limit, crouch, slide, and the bunny-hop speed bounds. Combat: fire
-rate, damage, falloff, headshot reward, time-to-kill, reload, recoil recovery,
-and that spread is reproducible from the command tick. Both exit non-zero on
-failure.
+```
+godot --headless --path . --script scripts/tests/bot_smoke_test.gd
+```
+
+124 behavioural checks across the three suites, all exiting non-zero on failure.
+
+- **Movement (22):** top speed, deceleration, jump apex against `v²/2g`, stair
+  climb and descent, the step-height limit, crouch, slide, bunny-hop bounds.
+- **Combat (50):** fire rate, damage, falloff, headshot reward, time-to-kill,
+  reload, recoil recovery, and that spread is reproducible from the command tick.
+- **Bots (52):** mostly *fairness* claims rather than behaviour ones — that a
+  bot cannot see through a wall or behind itself, does not shoot at a wall
+  someone vanished behind, spends its reaction time before firing, hears gunfire
+  but not from across the map, forgets a target it has lost, and fires no faster
+  than its weapon allows.
+
+That last suite exists because those bugs are invisible by feel: losing to a bot
+that cheats feels exactly like losing to a good one, so it has to be caught by
+assertion rather than by playing.
 
 Feel is not testable and has to be judged by hand. These cover the things that
 *are* objective and that break silently when a tuning value is edited.
 
-`.github/workflows/web.yml` runs the same test on every push and gates the web
-deploy on it, so a broken build never reaches the play link.
+`.github/workflows/web.yml` runs all three on every push and gates the web
+deploy on them, so a broken build never reaches the play link.
 
 ## Layout
 
 ```
-scenes/   player and level scenes
-scripts/  core/ player/ levels/ ui/ tests/
-assets/   config/ (art lands here later)
+scenes/   player, bot and level scenes
+scripts/  core/ player/ weapons/ combat/ bots/ audio/ levels/ ui/ tests/
+assets/   config/ player, weapons/*.tres, bots/*.tres
 docs/     engine choice, architecture, tuning guide
 .github/  web build + Pages deploy workflow
 ```

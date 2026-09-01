@@ -4,16 +4,17 @@ Milestones are ordered by your pillars, with one deliberate exception explained
 in M2. Every milestone ends in something you can launch and play — if a
 milestone cannot be played, it is too big and needs splitting.
 
-**Current position: M2 in progress.** Movement is signed off. The weapon
-architecture, the first weapon and the shooting range are in and testable; the
-remaining three weapons are next.
+**Current position: M3 in progress.** Movement is signed off. All four weapons,
+the shooting range and the sound pass are in. Bots now spawn, fight, take cover
+behind the fairness rules below, and can be turned up, down or off from the
+settings menu.
 
 | | Milestone | State |
 |---|---|---|
 | M0 | Foundations | Done |
 | M1 | Movement and feel | Done — signed off |
-| M2 | Gunplay + networking spike | **In progress** — four weapons and spike done |
-| M3 | Bots | Not started |
+| M2 | Gunplay + networking spike | Done — four weapons, optic, sound, spike |
+| M3 | Bots | **In progress** — senses, states, difficulty, director |
 | M4 | The arena | Not started |
 | M5 | Multiplayer | Not started |
 | M6 | Polish | Not started |
@@ -220,6 +221,36 @@ decision does not.
 
 **Risk:** navigation on interesting geometry. Flagged in `docs/engine-choice.md`;
 mitigation is to design M4's map for bot traversal from the first blockout.
+
+### Delivered so far
+
+- Navigation baked at runtime from the same static colliders the player
+  collides with, so anywhere a bot is told it can walk, you can walk
+- `BotSenses`: view cone, line of sight traced against world geometry only,
+  hearing seeded by gunfire and footsteps, and a last-known position that
+  expires. Every one of those is a thing a human also has
+- `BotBrain` fills an `InputCommand` — the same struct your mouse fills — so
+  bots are bound by the same acceleration, jump height, fire rate, spread and
+  reload times you are. They have no private path to anything
+- Four states on the same `StateMachine` the movement uses: idle scans, hunt
+  walks to the last *known* position rather than the live one, engage holds
+  range and strafes while working the trigger in bursts, retreat gives ground
+  and reloads
+- Three difficulty tiers as data (`assets/config/bots/*.tres`). Reaction time,
+  turn speed, aim error, burst discipline, preferred range and aggression —
+  and nothing that lets a bot know something you could not
+- `BotDirector` owns the roster: spawns on the navigation mesh away from
+  whoever is playing, relocates a bot's respawn on death so its spawn never
+  becomes a camping spot, and resizes the match live
+- Health regeneration after a delay, so a fight has a cost you can pay back by
+  disengaging rather than one that follows you for the rest of the session
+- HUD for actually fighting them: health with a delayed damage ghost,
+  directional damage indicators, kill feed and score
+- 51 bot checks in CI. Most of them are fairness claims, not behaviour ones
+
+**Still to come in M3:** cover as a real concept rather than an emergent one,
+navigation links for the jumps bots currently cannot take, and a 1v1 you sign
+off by playing.
 
 ---
 
