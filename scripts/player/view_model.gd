@@ -41,6 +41,11 @@ var _controller: PlayerController
 var _kick: float = 0.0
 var _kick_velocity: float = 0.0
 var _sway: Vector2 = Vector2.ZERO
+## Barrel tip. Tracers and the flash are drawn from here rather than from the
+## eye, which is where shots are actually traced from.
+var _muzzle: Marker3D
+var _flash: MeshInstance3D
+var _flash_life: float = 0.0
 
 func _ready() -> void:
 	_controller = _find_controller()
@@ -63,6 +68,18 @@ func _find_controller() -> PlayerController:
 func _on_fired(_weapon: WeaponResource) -> void:
 	# One impulse per shot, so a burst stacks the way a real one does.
 	_kick_velocity += 5.0
+	_flash_life = 1.0
+	if _flash != null:
+		_flash.visible = true
+		# Rolled at random so a held trigger does not strobe one fixed shape.
+		_flash.rotation.z = randf() * TAU
+		_flash.scale = Vector3.ONE * randf_range(0.85, 1.25)
+
+## World position of the barrel tip, for whoever is drawing the shot.
+func get_muzzle_position() -> Vector3:
+	if _muzzle == null:
+		return global_position
+	return _muzzle.global_position
 
 func _process(delta: float) -> void:
 	var target := HIP
@@ -75,6 +92,7 @@ func _process(delta: float) -> void:
 
 	_update_kick(delta)
 	_update_sway(delta, target == ADS)
+	_update_flash(delta)
 
 	var weight := 1.0 - exp(-delta * SETTLE_SPEED)
 	# The kick pushes the weapon back toward the camera, not down the barrel.
@@ -82,6 +100,17 @@ func _process(delta: float) -> void:
 	position = position.lerp(kicked, weight)
 	rotation.x = lerpf(rotation.x, -_kick * 0.05 - _sway.y * 2.0, weight)
 	rotation.y = lerpf(rotation.y, -_sway.x * 2.5, weight)
+
+## The flash is one reused mesh rather than a spawned effect: at 600 rpm this
+## fires ten times a second, and allocating a node and a material per shot to
+## show something for 45 ms is pure churn.
+func _update_flash(delta: float) -> void:
+	if _flash == null or _flash_life <= 0.0:
+		return
+	_flash_life = maxf(_flash_life - delta * 22.0, 0.0)
+	_flash.scale = Vector3.ONE * (0.5 + _flash_life * 0.9)
+	if _flash_life <= 0.0:
+		_flash.visible = false
 
 ## Fixed substep, same reason as the landing dip: an explicit spring stepped on
 ## the render frame recoils visibly harder at high frame rates.
@@ -128,6 +157,35 @@ func _build_mesh() -> void:
 		mesh.material_override = part[3]
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mesh)
+
+	# Barrel tip: the front face of the barrel box.
+	_muzzle = Marker3D.new()
+	_muzzle.name = "Muzzle"
+	_muzzle.position = Vector3(0.0, 0.010, -0.430)
+	add_child(_muzzle)
+
+	var flash_material := StandardMaterial3D.new()
+	flash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flash_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	flash_material.albedo_color = Color(1.0, 0.86, 0.52, 0.9)
+	flash_material.emission_enabled = true
+	flash_material.emission = Color(1.0, 0.80, 0.42)
+	flash_material.emission_energy_multiplier = 4.0
+	flash_material.no_depth_test = true
+	flash_material.render_priority = 2
+
+	_flash = MeshInstance3D.new()
+	_flash.name = "MuzzleFlash"
+	var flash_mesh := SphereMesh.new()
+	flash_mesh.radius = 0.045
+	flash_mesh.height = 0.09
+	flash_mesh.radial_segments = 6
+	flash_mesh.rings = 3
+	_flash.mesh = flash_mesh
+	_flash.material_override = flash_material
+	_flash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_flash.visible = false
+	_muzzle.add_child(_flash)
 
 func _material(color: Color, roughness: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()

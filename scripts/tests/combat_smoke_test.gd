@@ -278,6 +278,46 @@ func _build_plan() -> void:
 						"a different tick gives a different direction"),
 		},
 		{
+			# The reported bug: tracers drew from the eye, so while strafing the
+			# streak visibly came out of the player's face. Shots are still
+			# *traced* from the eye -- that is what the crosshair promises --
+			# but they must be *drawn* from somewhere else.
+			"name": "shots are drawn from the barrel, not the eye",
+			"ticks": 10,
+			"setup": func() -> void:
+				_stand_at_firing_line()
+				_reset_weapon(),
+			"check": func() -> void:
+				var muzzle: Vector3 = _player.get_muzzle_position()
+				var eye: Vector3 = _player.aim_point.global_position
+				_expect(muzzle.distance_to(eye) > 0.15,
+						"muzzle is %.2f m from the eye" % muzzle.distance_to(eye))
+				var flash: Node = _player.view_model.get_node_or_null(^"Muzzle/MuzzleFlash")
+				_expect(flash != null, "the weapon has a muzzle flash to fire"),
+		},
+		{
+			"name": "hitting world geometry leaves a bullet hole",
+			"ticks": 30,
+			"setup": func() -> void:
+				_stand_at_firing_line()
+				_reset_weapon()
+				# Straight down at the floor -- the case that showed nothing.
+				_aim_at(_player.global_position + Vector3(0.0, 0.0, -3.0)),
+			"during": func(t: int) -> void:
+				if t == 2:
+					_player.cmd.fire_pressed = true
+					_player.cmd.fire_held = true,
+			"check": func() -> void:
+				var fx: Node = _player.weapons.get_node_or_null(^"CombatFx")
+				_expect(fx != null, "the effects host exists")
+				var holes := 0
+				if fx != null:
+					for child in fx.get_children():
+						if child is MeshInstance3D and (child as MeshInstance3D).mesh is QuadMesh:
+							holes += 1
+				_expect(holes > 0, "%d bullet hole(s) left on the floor" % holes),
+		},
+		{
 			"name": "recoil moves the view and then recovers",
 			"ticks": int(hz * 2.0),
 			"setup": func() -> void:

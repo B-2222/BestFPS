@@ -115,7 +115,9 @@ near one does not block the far ones, plus a strafing target at 55 m. Each
 dummy shows its own health, has an orange head worth 2.2x damage, and revives
 three seconds after it goes down.
 
-The crosshair gap is the **real spread cone** converted to pixels, so it shows
+Shots leave bullet holes on walls and floors that fade after about nine
+seconds, tracers are drawn from the barrel rather than the camera, and the
+crosshair gap is the **real spread cone** converted to pixels, so it shows
 exactly where a bullet can land — it grows while you move and while you hold
 the trigger, and shrinks when you aim.
 

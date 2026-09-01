@@ -50,6 +50,7 @@ const MIN_HULL_HEIGHT := 0.2
 ## [CameraRig] for why weapons must not fire from the rendered camera.
 @onready var aim_point: Marker3D = $Head/AimPoint
 @onready var weapons: WeaponController = get_node_or_null(^"WeaponController")
+@onready var view_model: Node3D = get_node_or_null(^"Head/CameraArm/ViewModel")
 
 var machine: StateMachine
 var cmd: InputCommand
@@ -235,6 +236,16 @@ func recover_recoil(amount_radians: float) -> void:
 ## feel layer would silently change where bullets go.
 func get_aim_transform() -> Transform3D:
 	return aim_point.global_transform
+
+## Where a shot should appear to come from. Deliberately *not* the same as
+## [method get_aim_transform]: bullets are traced from the eye, which is
+## authoritative and is what the crosshair promises, but drawn from the barrel.
+## A tracer that starts at the camera looks like it is coming out of the
+## player's face, which is very obvious while strafing.
+func get_muzzle_position() -> Vector3:
+	if view_model != null and view_model.has_method(&"get_muzzle_position"):
+		return view_model.get_muzzle_position()
+	return aim_point.global_position
 
 # --- movement primitives (used by states) ----------------------------------
 

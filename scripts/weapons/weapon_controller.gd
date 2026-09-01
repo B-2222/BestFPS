@@ -163,9 +163,14 @@ func _fire(cmd: InputCommand, rt: WeaponRuntime) -> void:
 	var forward: Vector3 = -_player.aim_point.global_transform.basis.z
 	var spread_rad := deg_to_rad(current_spread_degrees())
 	var space := _player.get_world_3d().direct_space_state
+	# Traced from the eye, drawn from the barrel. Keeping these apart is the
+	# whole point: the eye is what the crosshair promises and what the server
+	# will validate, while a tracer starting at the camera visibly emerges from
+	# the player's face when they strafe.
+	var muzzle: Vector3 = _player.get_muzzle_position()
 
 	for pellet in res.pellets:
-		_trace_pellet(cmd, rt, space, origin, forward, spread_rad, pellet)
+		_trace_pellet(cmd, rt, space, origin, forward, spread_rad, pellet, muzzle)
 
 	# Recoil is applied *after* tracing, deliberately. The shot goes where the
 	# player was aiming when they pulled the trigger; the kick moves the next
@@ -178,7 +183,7 @@ func _fire(cmd: InputCommand, rt: WeaponRuntime) -> void:
 
 func _trace_pellet(cmd: InputCommand, rt: WeaponRuntime,
 		space: PhysicsDirectSpaceState3D, origin: Vector3, forward: Vector3,
-		spread_rad: float, pellet: int) -> void:
+		spread_rad: float, pellet: int, muzzle: Vector3) -> void:
 	var res := rt.resource
 	# Salt keeps pellets of one shot independent while staying reproducible.
 	var rng := Ballistics.make_rng(cmd.tick, rt.shot_index * 64 + pellet)
@@ -192,16 +197,17 @@ func _trace_pellet(cmd: InputCommand, rt: WeaponRuntime,
 	var hit := space.intersect_ray(query)
 
 	if hit.is_empty():
-		_fx.tracer(origin, destination)
+		_fx.tracer(muzzle, destination)
 		return
 
 	var point: Vector3 = hit["position"]
 	var normal: Vector3 = hit["normal"]
 	var collider: Object = hit["collider"]
-	_fx.tracer(origin, point)
+	_fx.tracer(muzzle, point)
 
 	if not (collider is Hitbox):
 		_fx.impact(point, normal, false)
+		_fx.bullet_hole(point, normal)
 		return
 
 	var hitbox := collider as Hitbox
