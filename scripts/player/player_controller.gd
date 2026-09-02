@@ -49,10 +49,13 @@ const NOISE_STRIDE := 2.15
 ## losing that assignment would be a very quiet bug.
 @export var input_source_path: NodePath = ^"PlayerInput"
 
-## Render the hitboxes as the character's body. Off for the local player, whose
-## body is never seen, and on for bots -- where the honest thing is for the
-## visible shape and the shootable shape to be the same boxes, so a shot that
-## looks like a hit is one.
+## Attach a visible, animated body ([CharacterFigure]). Off for the local
+## player, whose body is never seen, and on for bots.
+##
+## The figure is built over the same numbers as the hitboxes, and keeps its
+## torso and head exactly on theirs -- what you see there is what you hit. Only
+## the legs, which animate, and the arms, which are cosmetic, differ. See
+## [CharacterFigure] for why that is the right way round.
 @export var show_body: bool = false
 
 @onready var collider: CollisionShape3D = $Collider
@@ -180,12 +183,17 @@ func _ready() -> void:
 	machine.add_state(GroundedStateScript.new(self))
 	machine.add_state(AirStateScript.new(self))
 	machine.add_state(SlideStateScript.new(self))
-	# The local player renders no body -- nothing sees it in first person -- but
-	# still needs hitboxes, because bots have to be able to shoot back.
-	var own_hitboxes := CharacterHitboxes.build(self, show_body)
+	# Hitboxes are never drawn. They are the shootable volume; what gets drawn
+	# is a CharacterFigure built over the same table, because a hitbox is one
+	# box per region and boxes do not have knees.
+	var own_hitboxes := CharacterHitboxes.build(self, false)
 	_trace_exclusions = [get_rid()]
 	for hitbox in own_hitboxes:
 		_trace_exclusions.append(hitbox.get_rid())
+	if show_body:
+		var figure := CharacterFigure.new()
+		figure.name = "Figure"
+		add_child(figure)
 
 	if health != null:
 		health.died.connect(_on_died)

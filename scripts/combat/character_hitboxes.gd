@@ -51,7 +51,7 @@ static func build(host: Node3D, make_meshes: bool) -> Array[Hitbox]:
 			mesh.material_override = material
 			hitbox.add_child(mesh)
 			if id == &"head":
-				hitbox.add_child(_make_visor(part[1]))
+				hitbox.add_child(make_visor(part[1]))
 
 		built.append(hitbox)
 	return built
@@ -66,7 +66,7 @@ static func base_color(id: StringName) -> Color:
 ## identical boxes give no facing cue at all, and "has it seen me yet?" is the
 ## single most important thing to be able to read about a bot -- it is what
 ## makes flanking a decision rather than a coin flip.
-static func _make_visor(head_size: Vector3) -> MeshInstance3D:
+static func make_visor(head_size: Vector3) -> MeshInstance3D:
 	var visor := MeshInstance3D.new()
 	visor.name = "Visor"
 	var mesh := BoxMesh.new()
