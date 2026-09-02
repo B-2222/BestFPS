@@ -113,7 +113,7 @@ func _ready() -> void:
 	# to the WeaponController is still null. Resolved on the first frame
 	# instead -- getting this wrong silently left every weapon drawing the
 	# rifle, because the fallback shape was the only one ever built.
-	_rebuild(&"rifle")
+	_rebuild(&"rifle", null)
 
 ## Connect on the first frame, once the player has actually readied.
 func _ensure_weapons() -> void:
@@ -124,7 +124,7 @@ func _ensure_weapons() -> void:
 	_weapons.weapon_changed.connect(_on_weapon_changed)
 	var runtime := _weapons.current()
 	if runtime != null:
-		_rebuild(runtime.resource.view_shape)
+		_rebuild(runtime.resource.view_shape, runtime.resource)
 
 func _find_controller() -> PlayerController:
 	var node := get_parent()
@@ -141,7 +141,7 @@ func get_muzzle_position() -> Vector3:
 	return _muzzle.global_position
 
 func _on_weapon_changed(weapon: WeaponResource) -> void:
-	_rebuild(weapon.view_shape)
+	_rebuild(weapon.view_shape, weapon)
 
 func _on_fired(_weapon: WeaponResource) -> void:
 	# One impulse per shot, so a burst stacks the way a real one does.
@@ -270,7 +270,7 @@ func _update_sway(delta: float, aiming: bool) -> void:
 
 # ---------------------------------------------------------------------------
 
-func _rebuild(shape_id: StringName) -> void:
+func _rebuild(shape_id: StringName, weapon: WeaponResource) -> void:
 	if shape_id == _shape_id:
 		return
 	_shape_id = shape_id
@@ -284,6 +284,42 @@ func _rebuild(shape_id: StringName) -> void:
 		remove_child(child)
 		child.queue_free()
 
+	if weapon != null and weapon.view_model_scene != null:
+		_build_model(weapon)
+		return
+	_build_silhouette()
+
+## Instance a real model in place of the boxes.
+##
+## Everything downstream is unaffected: pose, sway, kick and the reload
+## animation all act on this node, not on the geometry under it, and the shot
+## itself is traced from the player's eye regardless. Swapping art cannot change
+## where bullets go, which is the point of having kept those apart.
+func _build_model(weapon: WeaponResource) -> void:
+	var model := weapon.view_model_scene.instantiate() as Node3D
+	if model == null:
+		push_warning("ViewModel: %s has a view_model_scene whose root is not a Node3D."
+				% weapon.display_name)
+		_build_silhouette()
+		return
+	model.name = "Model"
+	model.scale = Vector3.ONE * weapon.model_scale
+	model.rotation_degrees = weapon.model_rotation_degrees
+	add_child(model)
+	for child in model.find_children("*", "MeshInstance3D", true, false):
+		# First-person geometry must not self-shadow into the scene; it lives a
+		# few centimetres from the camera and would throw a shadow across the
+		# whole view.
+		(child as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_magazine = model.find_child("Magazine", true, false) as MeshInstance3D
+	if _magazine != null:
+		_magazine_home = _magazine.position
+	_handguard = model.find_child("Handguard", true, false) as MeshInstance3D
+	if _handguard != null:
+		_handguard_home = _handguard.position
+	_finish(weapon.model_muzzle)
+
+func _build_silhouette() -> void:
 	var materials := {
 		"metal": _material(Color(0.16, 0.17, 0.20), 0.55),
 		"accent": _material(Color(0.30, 0.32, 0.36), 0.45),
@@ -305,9 +341,12 @@ func _rebuild(shape_id: StringName) -> void:
 			_handguard = mesh
 			_handguard_home = mesh.position
 
+	_finish(_shape["muzzle"])
+
+func _finish(muzzle: Vector3) -> void:
 	_muzzle = Marker3D.new()
 	_muzzle.name = "Muzzle"
-	_muzzle.position = _shape["muzzle"]
+	_muzzle.position = muzzle
 	add_child(_muzzle)
 	_build_flash()
 

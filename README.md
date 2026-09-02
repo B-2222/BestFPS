@@ -205,6 +205,12 @@ Which means the counterplay is real:
 | Peek and re-peek | Reaction time is spent again on every re-acquire |
 | Push a hurt one | Below its threshold it gives ground, then commits |
 
+Bots have jointed bodies with a real walk cycle — hips swing, knees fold, and
+the stride is driven by distance travelled so the legs land with the footstep
+sounds at any speed. Torso and head sit exactly on their hitboxes and never
+move, so what you see there is what you hit; only the legs, which animate, and
+the arms, which are cosmetic, differ.
+
 Three tiers in `assets/config/bots/*.tres` — Recruit, Regular, Veteran — and a
 new one is a file, not a code change. The roster carries a mix of rifles,
 shotguns and pistols, and a bot holds its weapon where you can see it, because
@@ -216,6 +222,19 @@ decides every fight for the rest of the session, and the game becomes about
 avoiding fights.
 
 Details and the reasoning: [docs/architecture.md](docs/architecture.md) §10.
+
+## Weapon models
+
+Every weapon currently draws a procedural box silhouette. Real models drop in
+without touching code: put a `.glb` in `assets/models/weapons/`, set
+`view_model_scene` (first person) and/or `world_model_scene` (what bots hold)
+in the weapon's `.tres`, and point `model_muzzle` at the barrel tip.
+
+Damage, fire rate, spread, recoil and the shot trace all read from the `.tres`
+and from that marker, never from the mesh — so art can never quietly change
+where bullets go. Full instructions and sourcing notes, including which
+licences work outside Unreal, are in
+[assets/models/weapons/README.md](assets/models/weapons/README.md).
 
 ## Tuning it yourself
 

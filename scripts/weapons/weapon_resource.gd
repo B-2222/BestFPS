@@ -25,6 +25,30 @@ extends Resource
 ## &"magazine" drops and swaps a mag; &"pump" cycles the handguard.
 @export var reload_style: StringName = &"magazine"
 
+@export_group("Models")
+## Optional first-person model. Leave empty and the procedural silhouette keyed
+## off [member view_shape] is used instead.
+##
+## This is the whole drop-in point for real art: put a .glb (or .blend, or any
+## scene Godot imports) under assets/models/weapons/, set it here, and nothing
+## else changes -- firing, spread, recoil and the muzzle trace all read from
+## this resource and from the marker below, never from the mesh.
+##
+## Two node names are animated if the model happens to have them: a child named
+## "Magazine" drops and reseats on a magazine reload, and one named "Handguard"
+## racks on a pump reload. A model without them simply does not animate those.
+@export var view_model_scene: PackedScene
+## Optional third-person model, shown on bots and (in M5) on remote players.
+@export var world_model_scene: PackedScene
+## Barrel tip in the model's own space. Tracers and the muzzle flash are drawn
+## from here, so it wants to be at the end of the barrel; only used when a
+## model scene is set.
+@export var model_muzzle: Vector3 = Vector3(0.0, 0.0, -0.5)
+## Uniform scale and orientation correction, because exporters disagree about
+## which way is forward and how big a metre is.
+@export var model_scale: float = 1.0
+@export var model_rotation_degrees: Vector3 = Vector3.ZERO
+
 @export_group("Firing")
 ## Held trigger keeps firing. False means one shot per press.
 @export var automatic: bool = true
