@@ -29,6 +29,11 @@ extends Node
 ## will not follow them out.
 var bounds: AABB = AABB()
 var is_confined: bool = false
+## Where this bot may *spawn*, which can be a subset of [member bounds] -- a
+## duel bot starts across the room from the door rather than anywhere in it.
+## Kept on the brain rather than in a table on the director so there is one
+## copy of it, and so it cannot outlive the bot it describes.
+var spawn_bounds: AABB = AABB()
 
 var controller: PlayerController
 var agent: NavigationAgent3D

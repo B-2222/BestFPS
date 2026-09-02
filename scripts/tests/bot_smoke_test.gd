@@ -136,7 +136,10 @@ func _place_bot(bot: PlayerController, position: Vector3, yaw: float,
 		bot.health.revive()
 	bot.health.current = bot.health.max_health
 
-	brain.profile = _profile(profile_name)
+	# An empty name keeps whatever tier the bot already is, which is what the
+	# duel-room phases want -- the room's difficulty is the thing under test.
+	if profile_name != "":
+		brain.profile = _profile(profile_name)
 	brain.senses.profile = brain.profile
 	brain.senses.visible_target = null
 	brain.senses.has_last_known = false
@@ -700,7 +703,13 @@ func _build_plan() -> void:
 				var rt := brain.weapon()
 				_expect(rt != null and rt.resource.slot == BotDirector.DUEL_WEAPON,
 						"room %d carries the same weapon as the others (%s)"
-						% [i, "none" if rt == null else rt.resource.display_name]),
+						% [i, "none" if rt == null else rt.resource.display_name])
+				# Not in the blind pocket between the door and the baffle,
+				# where it can see nothing and the duel never starts.
+				_expect(BotDirector._inside(ArenaBuilder.duel_spawn_bounds(i),
+						bot.global_position),
+						"room %d bot started across the room, not beside the door"
+						% i),
 	},
 	{
 		"name": "a bot in one room cannot see the corridor outside another",
@@ -733,11 +742,21 @@ func _build_plan() -> void:
 			_reset_counters()
 			var bounds := ArenaBuilder.duel_bounds(1)
 			var centre := bounds.get_center()
-			# Inside the Regular room, past the baffle.
-			_stand_player(Vector3(bounds.end.x - 3.0, 1.0, centre.z))
+			# Both fighters placed, not just the player. Left where it spawned,
+			# the bot can be anywhere in the room including behind the baffle
+			# with no sight line at all -- and then this phase measures nothing
+			# while reporting a result, which is the failure mode this suite
+			# already learned the hard way once.
+			#
+			# Opening positions are the ones a real duel starts from: you just
+			# inside the door, it across the room.
+			_stand_player(Vector3(bounds.position.x + 2.0, 1.0, centre.z + 5.0))
 			var bot := _duel(1)
-			if bot != null:
-				_watch_shots(bot),
+			if bot == null:
+				return
+			_place_bot(bot, Vector3(bounds.end.x - 3.0, 1.0, centre.z), 0.0, "")
+			_look_at(bot, _player.global_position)
+			_watch_shots(bot),
 		"during": func(tick: int) -> void:
 			_player.health.heal(100.0)
 			var bot := _duel(1)

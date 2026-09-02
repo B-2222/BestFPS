@@ -184,7 +184,8 @@ func _maintain_duel_pits() -> void:
 		# that differs -- a Recruit with a shotgun and a Veteran with a pistol
 		# tells you nothing about reaction time. The rifle is also the weapon
 		# every other number in the game is balanced against.
-		var bot := _spawn_bot(profile, ArenaBuilder.duel_bounds(i), DUEL_WEAPON)
+		var bot := _spawn_bot(profile, ArenaBuilder.duel_bounds(i), DUEL_WEAPON,
+				ArenaBuilder.duel_spawn_bounds(i))
 		if bot == null:
 			continue
 		bot.name = "Duel%s" % String(pit[2]).capitalize()
@@ -217,15 +218,18 @@ static func duel_room_name(index: int) -> String:
 
 ## [param weapon_slot] of -1 takes the next weapon in the rotation; anything
 ## else forces that slot.
-func _spawn_bot(profile: BotProfile, bounds: AABB,
-		weapon_slot: int = -1) -> PlayerController:
+## [param spawn_bounds] defaults to the whole of [param bounds].
+func _spawn_bot(profile: BotProfile, bounds: AABB, weapon_slot: int = -1,
+		spawn_bounds: AABB = AABB()) -> PlayerController:
 	if bot_scene == null:
 		return null
 	var bot := bot_scene.instantiate() as PlayerController
 	if bot == null:
 		push_error("BotDirector: bot scene root is not a PlayerController.")
 		return null
-	var spawn := _pick_spawn(bounds)
+	if spawn_bounds.size == Vector3.ZERO:
+		spawn_bounds = bounds
+	var spawn := _pick_spawn(spawn_bounds)
 	# Positioned before entering the tree: PlayerController records its respawn
 	# point in _ready(), so a bot added at the origin and moved afterwards would
 	# come back to the origin every time it died.
@@ -236,6 +240,7 @@ func _spawn_bot(profile: BotProfile, bounds: AABB,
 	if brain != null:
 		brain.profile = profile
 		brain.bounds = bounds
+		brain.spawn_bounds = spawn_bounds
 		brain.is_confined = true
 		brain.weapon_slot_override = (weapon_slot if weapon_slot >= 0
 				else WEAPON_ROTATION[_spawned % WEAPON_ROTATION.size()])
@@ -276,7 +281,7 @@ func _on_bot_died(info: DamageInfo, bot: PlayerController) -> void:
 	# would be one more pair of numbers that can disagree -- and one more
 	# dictionary holding a reference to a bot that has been freed.
 	var brain := bot.get_node_or_null(^"BotBrain") as BotBrain
-	var bounds: AABB = brain.bounds if brain != null and brain.is_confined \
+	var bounds: AABB = brain.spawn_bounds if brain != null and brain.is_confined \
 			else ArenaBuilder.main_arena_bounds()
 	bot.set_spawn_point(_pick_spawn(bounds))
 	fragged.emit(info.source, bot, info.is_headshot)

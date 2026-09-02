@@ -56,6 +56,23 @@ static func duel_bounds(index: int) -> AABB:
 	return AABB(Vector3(DUEL_X, -1.0, z - half),
 			Vector3(DUEL_ROOM, WALL_HEIGHT + 2.0, DUEL_ROOM))
 
+## Where a duel bot is allowed to *start*, which is not the whole room.
+##
+## The three metres between the door and the baffle are a blind pocket: a bot
+## standing there can see almost nothing, and [BotDirector] scores spawns by
+## distance from the player, so a player at the far wall pushes the bot into
+## exactly that corner. The result is a duel where nothing happens until
+## somebody wanders round a wall.
+##
+## Starting it in the far two thirds instead makes every duel open the same
+## way -- you come through the door, it is across the room -- which is also the
+## only way three rooms can be compared with each other.
+static func duel_spawn_bounds(index: int) -> AABB:
+	var full := duel_bounds(index)
+	var inset := DUEL_ROOM / 3.0
+	return AABB(full.position + Vector3(inset, 0.0, 0.0),
+			full.size - Vector3(inset, 0.0, 0.0))
+
 ## Everywhere that is not a duel room. Free-roaming bots are held to this, so
 ## one cannot wander into a duel and turn a 1v1 into a 2v1.
 static func main_arena_bounds() -> AABB:

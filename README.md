@@ -237,13 +237,13 @@ godot --headless --path . --script scripts/tests/combat_smoke_test.gd
 godot --headless --path . --script scripts/tests/bot_smoke_test.gd
 ```
 
-152 behavioural checks across the three suites, all exiting non-zero on failure.
+155 behavioural checks across the three suites, all exiting non-zero on failure.
 
 - **Movement (22):** top speed, deceleration, jump apex against `v²/2g`, stair
   climb and descent, the step-height limit, crouch, slide, bunny-hop bounds.
 - **Combat (50):** fire rate, damage, falloff, headshot reward, time-to-kill,
   reload, recoil recovery, and that spread is reproducible from the command tick.
-- **Bots (80):** mostly *fairness* claims rather than behaviour ones — that a
+- **Bots (83):** mostly *fairness* claims rather than behaviour ones — that a
   bot cannot see through a wall or behind itself, does not shoot at a wall
   someone vanished behind, spends its reaction time before firing, hears gunfire
   but not from across the map, forgets a target it has lost, and fires no faster
