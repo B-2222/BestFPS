@@ -250,7 +250,7 @@ mitigation is to design M4's map for bot traversal from the first blockout.
 - A duel wing: three sealed, labelled rooms east of the arena, one bot of one
   tier in each, confined by code as well as by walls. A difficulty is very hard
   to judge in a three-way scrap where you cannot tell whose bullet killed you
-- 83 bot checks in CI. Most of them are fairness claims, not behaviour ones
+- 82 bot checks in CI. Most of them are fairness claims, not behaviour ones
 
 **Still to come in M3:** cover as a real concept rather than an emergent one,
 navigation links for the jumps bots currently cannot take, and a 1v1 you sign

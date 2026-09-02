@@ -767,14 +767,18 @@ func _build_plan() -> void:
 			# fight somewhere it should never have been.
 			if not _all_duel_bots_home():
 				_fired_during_reload = true,
+		# Deliberately does not assert that any shot *landed*. Aim error is
+		# resampled per burst, so a Regular bot at fourteen metres can honestly
+		# miss every burst in a six-second window -- which it did, in one run in
+		# four, and that is the error model doing its job rather than a fault.
+		# Whether bots hit hard enough is phase 7's claim and whether they miss
+		# enough is phase 11's; this phase is only about isolation.
 		"check": func() -> void:
 			_expect(_observed_states.has(&"bot_engage"),
 					"the room's own bot fought you")
 			_expect(_shots > 0, "and shot at you (%d)" % _shots)
 			_expect(not _fired_during_reload,
-					"no duel bot left its room at any point during the fight")
-			_expect(_player_hits > 0,
-					"you took fire from it (%d hits)" % _player_hits),
+					"no duel bot left its room at any point during the fight"),
 	},
 	{
 		"name": "a killed duel bot comes back in its own room",

@@ -82,7 +82,7 @@ jobs:
         run: godot --headless --script scripts/tests/combat_smoke_test.gd
 
       - name: Bot smoke test
-        # 83 checks. Mostly fairness claims rather than behaviour: that a bot
+        # 82 checks. Mostly fairness claims rather than behaviour: that a bot
         # cannot see through a wall or behind itself, cannot shoot faster than
         # the weapon allows, spends its reaction time before firing, and
         # forgets a target it has lost. Those are exactly the bugs that are
