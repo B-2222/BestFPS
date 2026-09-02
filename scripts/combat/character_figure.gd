@@ -39,6 +39,12 @@ const LEG_HALF_WIDTH := 0.125
 const HIP_HEIGHT := 0.90
 const SEGMENT := 0.45
 const SHOULDER_HEIGHT := 1.46
+## Upper arm and forearm. Two bones, because one straight segment cannot reach
+## a foregrip held out in front of the chest without stretching to twice its
+## length, and a stretched arm looks worse than no arm at all.
+const ARM_SEGMENT := 0.31
+## Rest pose used when there is no weapon to hold.
+const REST_HAND := [Vector3(0.17, 1.16, -0.26), Vector3(-0.17, 1.16, -0.26)]
 
 @export var controller_path: NodePath = ^".."
 
@@ -46,8 +52,15 @@ var _controller: PlayerController
 
 var _hips: Array[Node3D] = []
 var _knees: Array[Node3D] = []
-var _arms: Array[Node3D] = []
+## Shoulder, elbow and the two meshes per arm, index 0 right and 1 left.
+var _shoulders: Array[Node3D] = []
+var _elbows: Array[Node3D] = []
+var _upper_arms: Array[MeshInstance3D] = []
+var _forearms: Array[MeshInstance3D] = []
 var _root: Node3D
+## Whatever this character is holding, found by the method it answers rather
+## than by its class -- see [method _find_weapon].
+var _weapon: Node = null
 
 ## Position in the gait cycle, in radians. Advanced by distance travelled rather
 ## than by time, so the legs stay in step at any speed -- the same reason the
@@ -81,6 +94,9 @@ func _build() -> void:
 
 	for side in [-1.0, 1.0]:
 		_build_leg(side, legs_size)
+	# Right arm first: index 0 is the trigger hand, index 1 the support hand,
+	# matching the order grip_points() returns.
+	for side in [1.0, -1.0]:
 		_build_arm(side, body_size)
 
 ## Hip -> thigh -> knee -> shin. Two joints is the minimum that reads as a walk:
@@ -106,24 +122,35 @@ func _build_leg(side: float, legs_size: Vector3) -> void:
 	_hips.append(hip)
 	_knees.append(knee)
 
-## One segment per arm, angled forward *and inward* so both hands converge on
-## the weapon. Bots hold a rifle in both hands, so the arms do not swing.
+## Shoulder -> upper arm -> elbow -> forearm, mirroring the legs.
 ##
-## The inward tilt is the difference between a figure holding something and a
-## scarecrow: without it the arms hang parallel at shoulder width, pointing at
-## nothing, and the weapon appears to float beside one of them.
+## Built jointed rather than posed, because the hands are solved onto the
+## weapon's own grips every frame. A fixed pose can only ever be right for one
+## weapon held in one place; this is right for a pistol and a sniper rifle
+## without either being a special case.
 func _build_arm(side: float, body_size: Vector3) -> void:
+	var colour := CharacterHitboxes.base_color(&"body").darkened(0.22)
 	var shoulder := Node3D.new()
 	shoulder.name = "Shoulder%s" % ("L" if side < 0.0 else "R")
-	# Just at the torso edge, not proud of it.
 	shoulder.position = Vector3(side * (body_size.x * 0.5 - 0.01),
 			SHOULDER_HEIGHT, 0.0)
-	shoulder.rotation = Vector3(deg_to_rad(-52.0), 0.0, deg_to_rad(side * 17.0))
 	_root.add_child(shoulder)
-	shoulder.add_child(_slab("Arm", Vector3(0.11, 0.42, 0.11),
-			Vector3(0.0, -0.21, 0.0),
-			CharacterHitboxes.base_color(&"body").darkened(0.22)))
-	_arms.append(shoulder)
+	var upper := _slab("Upper", Vector3(0.11, ARM_SEGMENT, 0.11),
+			Vector3(0.0, -ARM_SEGMENT * 0.5, 0.0), colour)
+	shoulder.add_child(upper)
+
+	var elbow := Node3D.new()
+	elbow.name = "Elbow"
+	elbow.position = Vector3(0.0, -ARM_SEGMENT, 0.0)
+	shoulder.add_child(elbow)
+	var fore := _slab("Fore", Vector3(0.095, ARM_SEGMENT, 0.095),
+			Vector3(0.0, -ARM_SEGMENT * 0.5, 0.0), colour.darkened(0.08))
+	elbow.add_child(fore)
+
+	_shoulders.append(shoulder)
+	_elbows.append(elbow)
+	_upper_arms.append(upper)
+	_forearms.append(fore)
 
 func _slab(slab_name: String, size: Vector3, offset: Vector3,
 		colour: Color) -> MeshInstance3D:
@@ -142,6 +169,7 @@ func _slab(slab_name: String, size: Vector3, offset: Vector3,
 func _process(delta: float) -> void:
 	if _controller == null or _hips.size() < 2:
 		return
+	_solve_arms()
 	if _controller.is_dead:
 		_animate_death(delta)
 		return
@@ -173,6 +201,83 @@ func _process(delta: float) -> void:
 		var fold := maxf(-sin(phase + 0.7), 0.0)
 		_knees[i].rotation.x = -fold * _swing * (MAX_KNEE_DEGREES / MAX_SWING_DEGREES)
 
+# --- arms -------------------------------------------------------------------
+
+## Put both hands on the weapon.
+##
+## Solved every frame rather than posed once, because the weapon is parented to
+## the head and therefore pitches with aim: a fixed arm pose would hold the
+## grips only while the character was looking dead level, and let go the moment
+## it looked up or down.
+func _solve_arms() -> void:
+	if _shoulders.size() < 2:
+		return
+	var targets: Array = REST_HAND.map(func(p: Vector3) -> Vector3:
+			return _root.to_global(p))
+	var weapon := _find_weapon()
+	if weapon != null:
+		var grips: Array = weapon.call(&"grip_points")
+		if grips.size() >= 2:
+			targets = grips
+	for i in 2:
+		_solve_arm(i, targets[i])
+
+## Two-bone IK. Both bones are the same length, which collapses the usual law
+## of cosines into something much shorter: the elbow angle depends only on how
+## far away the target is.
+func _solve_arm(index: int, target: Vector3) -> void:
+	var shoulder := _shoulders[index]
+	var parent := shoulder.get_parent() as Node3D
+	var local := parent.to_local(target) - shoulder.position
+	var reach := local.length()
+	if reach < 0.02:
+		return
+	# Clamped just short of straight. At exactly full reach the elbow angle is
+	# zero and the arm snaps between bent and locked as the target drifts.
+	var span := ARM_SEGMENT * 2.0
+	reach = clampf(reach, span * 0.25, span * 0.985)
+	var direction := local.normalized()
+
+	# Elbow bends backwards and slightly outward, which is where a human one
+	# goes and, more usefully, is never in front of the chest.
+	var side := 1.0 if index == 0 else -1.0
+	var pole := (Vector3(side * 0.45, -0.25, 1.0)).normalized()
+	var bend_axis := direction.cross(pole)
+	if bend_axis.length_squared() < 0.0001:
+		bend_axis = direction.cross(Vector3.UP)
+	bend_axis = bend_axis.normalized()
+
+	# Half the interior angle at the shoulder, from the isoceles triangle the
+	# two equal bones make with the shoulder-to-target line.
+	var half := acos(clampf(reach / span, -1.0, 1.0))
+	var upper_direction := direction.rotated(bend_axis, half)
+
+	shoulder.basis = _aim_down(upper_direction)
+	# The forearm closes back onto the target by twice that angle.
+	_elbows[index].basis = Basis(Vector3.RIGHT, Vector3.UP, Vector3.BACK).rotated(
+			shoulder.basis.inverse() * bend_axis, -2.0 * half)
+
+## A basis whose local -Y points along [param direction], because every limb
+## segment in this figure hangs downward from its joint.
+func _aim_down(direction: Vector3) -> Basis:
+	var y := -direction.normalized()
+	var reference := Vector3.FORWARD if absf(y.dot(Vector3.FORWARD)) < 0.95 else Vector3.RIGHT
+	var x := reference.cross(y).normalized()
+	return Basis(x, y, x.cross(y))
+
+## Anything on this character that can say where its hands should be. Matched by
+## method rather than by class so this file, which is generic character code,
+## does not have to know that bots exist.
+func _find_weapon() -> Node:
+	if _weapon != null and is_instance_valid(_weapon):
+		return _weapon
+	_weapon = null
+	for node in _controller.find_children("*", "", true, false):
+		if node.has_method(&"grip_points"):
+			_weapon = node
+			break
+	return _weapon
+
 func _animate_airborne(delta: float) -> void:
 	# Tucked, with the trailing leg further back. Not a real jump pose, but it
 	# is unmistakably not a walk, which is the whole job.
@@ -191,5 +296,3 @@ func _animate_death(delta: float) -> void:
 	for i in 2:
 		_hips[i].rotation.x = move_toward(_hips[i].rotation.x, deg_to_rad(38.0), delta * 5.0)
 		_knees[i].rotation.x = move_toward(_knees[i].rotation.x, deg_to_rad(-62.0), delta * 5.0)
-	for arm in _arms:
-		arm.rotation.x = move_toward(arm.rotation.x, deg_to_rad(-24.0), delta * 4.0)
