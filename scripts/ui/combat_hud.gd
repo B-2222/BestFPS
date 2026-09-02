@@ -23,6 +23,7 @@ var _damage: DamageOverlay
 var _feed: VBoxContainer
 var _score: Label
 var _status: Label
+var _duel: Label
 
 var _player_frags: int = 0
 var _bot_frags: int = 0
@@ -42,6 +43,7 @@ func _ready() -> void:
 		_health.fraction = player.health.fraction()
 	if director != null:
 		director.fragged.connect(_on_fragged)
+		director.duel_room_changed.connect(_on_duel_room_changed)
 		_refresh_score()
 	if weapons != null:
 		weapons.ammo_changed.connect(_on_ammo_changed)
@@ -207,6 +209,20 @@ func _build() -> void:
 	_score.text = ""
 	add_child(_score)
 
+	# Names the tier you are currently in a room with, so "it felt too hard"
+	# can be about a specific one rather than about bots in general.
+	_duel = Label.new()
+	_duel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_duel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_duel.offset_top = 44
+	_duel.offset_bottom = 68
+	_duel.offset_left = -260
+	_duel.offset_right = 260
+	_duel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_duel.add_theme_font_size_override("font_size", 15)
+	_duel.visible = false
+	add_child(_duel)
+
 	_status = Label.new()
 	_status.set_anchors_preset(Control.PRESET_CENTER)
 	_status.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -262,6 +278,16 @@ func _on_fragged(attacker: Node, victim: Node, headshot: bool) -> void:
 		colour = Color(1.0, 0.82, 0.35)
 	var mark := "  [HEAD]" if headshot else ""
 	_push_feed("%s  >  %s%s" % [_name_of(attacker), _name_of(victim), mark], colour)
+
+func _on_duel_room_changed(index: int) -> void:
+	if index < 0:
+		_duel.visible = false
+		return
+	_duel.text = "DUEL ROOM  ·  %s" % BotDirector.duel_room_name(index)
+	_duel.add_theme_color_override("font_color",
+			[Color(0.55, 0.9, 0.6), Color(1.0, 0.82, 0.35),
+				Color(1.0, 0.45, 0.42)][clampi(index, 0, 2)])
+	_duel.visible = true
 
 func _refresh_score() -> void:
 	_score.text = "YOU %d      BOTS %d" % [_player_frags, _bot_frags]

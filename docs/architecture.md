@@ -257,6 +257,22 @@ visibly cheating. It also matters mechanically — breaking line of sight is
 most of what positioning is *for*, and it only means something if the bot can
 actually be lost.
 
+### Confinement is movement-only
+
+`BotBrain.bounds` is the volume a bot may walk in — its duel room, or the main
+arena for a free-roaming one. Goals are clamped into it, direct combat steps
+that would leave it are refused, and a bot found outside it *paths* back rather
+than walking at the nearest in-bounds point, which is usually straight through
+a wall.
+
+Senses are deliberately **not** confined. A bot that stopped being able to see
+you the moment you stepped over a line would let you shoot it from the doorway
+with impunity — a worse lie than a bot that wanders. So it fights anyone it can
+genuinely see and simply will not follow them out. The isolation between duel
+rooms is therefore geometric first (walls, and a baffle inside each door so
+there is no sight line from the corridor) with the bounds as the guarantee that
+nothing leaks.
+
 ### Difficulty as data
 
 `BotProfile` is a `Resource`, so a tier is a `.tres` file and a new one is not

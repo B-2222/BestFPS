@@ -157,6 +157,12 @@ func _build() -> void:
 			func() -> int: return _settings.bot_difficulty,
 			func(v: int) -> void: _settings.set_bot_difficulty(v),
 			func(v: int) -> String: return DIFFICULTY_NAMES[v]))
+	# The duel rooms are a separate roster from the count above, so they get
+	# their own switch rather than being folded into it.
+	column.add_child(_build_stepper_row("Duel-wing bots", 0, 1,
+			func() -> int: return 1 if _settings.duel_bots else 0,
+			func(v: int) -> void: _settings.set_duel_bots(v == 1),
+			func(v: int) -> String: return "On" if v == 1 else "Off"))
 	column.add_child(HSeparator.new())
 
 	var hint := Label.new()

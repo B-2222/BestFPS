@@ -59,6 +59,11 @@ var master_volume: float = 0.7
 var bot_count: int = 3
 var bot_difficulty: int = 0
 
+## Keep one bot of each tier in the duel wing's sealed rooms. On by default:
+## the rooms are a labelled instrument, and an instrument with nothing in it
+## is a corridor.
+var duel_bots: bool = true
+
 var _defaults: Dictionary = {}
 
 func _ready() -> void:
@@ -95,6 +100,7 @@ func reset_all() -> void:
 	set_master_volume(0.7)
 	bot_count = 3
 	bot_difficulty = 0
+	duel_bots = true
 	match_settings_changed.emit()
 
 func set_master_volume(value: float) -> void:
@@ -119,6 +125,11 @@ func set_bot_count(value: int) -> void:
 
 func set_bot_difficulty(value: int) -> void:
 	bot_difficulty = clampi(value, 0, 2)
+	match_settings_changed.emit()
+	save_settings()
+
+func set_duel_bots(enabled: bool) -> void:
+	duel_bots = enabled
 	match_settings_changed.emit()
 	save_settings()
 
@@ -170,6 +181,7 @@ func save_settings() -> void:
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("match", "bot_count", bot_count)
 	config.set_value("match", "bot_difficulty", bot_difficulty)
+	config.set_value("match", "duel_bots", duel_bots)
 	for entry in REBINDABLE:
 		var action: StringName = entry[0]
 		if not InputMap.has_action(action):
@@ -190,6 +202,7 @@ func load_settings() -> void:
 	master_volume = float(config.get_value("audio", "master_volume", 0.7))
 	bot_count = clampi(int(config.get_value("match", "bot_count", 3)), 0, 12)
 	bot_difficulty = clampi(int(config.get_value("match", "bot_difficulty", 0)), 0, 2)
+	duel_bots = bool(config.get_value("match", "duel_bots", true))
 	_apply_volume()
 	for entry in REBINDABLE:
 		var action: StringName = entry[0]

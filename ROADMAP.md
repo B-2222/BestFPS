@@ -4,17 +4,18 @@ Milestones are ordered by your pillars, with one deliberate exception explained
 in M2. Every milestone ends in something you can launch and play — if a
 milestone cannot be played, it is too big and needs splitting.
 
-**Current position: M3 in progress.** Movement is signed off. All four weapons,
-the shooting range and the sound pass are in. Bots now spawn, fight, take cover
-behind the fairness rules below, and can be turned up, down or off from the
-settings menu.
+**Current position: M3 in progress, awaiting a verdict on the bots.** Movement
+is signed off. All four weapons, the shooting range and the sound pass are in.
+Bots spawn, fight, and can be turned up, down or off from the settings menu --
+and the duel wing exists so each difficulty can be judged on its own rather
+than in whatever scrap the arena is having.
 
 | | Milestone | State |
 |---|---|---|
 | M0 | Foundations | Done |
 | M1 | Movement and feel | Done — signed off |
 | M2 | Gunplay + networking spike | Done — four weapons, optic, sound, spike |
-| M3 | Bots | **In progress** — senses, states, difficulty, director |
+| M3 | Bots | **In progress** — senses, states, difficulty, duel wing |
 | M4 | The arena | Not started |
 | M5 | Multiplayer | Not started |
 | M6 | Polish | Not started |
@@ -246,7 +247,10 @@ mitigation is to design M4's map for bot traversal from the first blockout.
   disengaging rather than one that follows you for the rest of the session
 - HUD for actually fighting them: health with a delayed damage ghost,
   directional damage indicators, kill feed and score
-- 51 bot checks in CI. Most of them are fairness claims, not behaviour ones
+- A duel wing: three sealed, labelled rooms east of the arena, one bot of one
+  tier in each, confined by code as well as by walls. A difficulty is very hard
+  to judge in a three-way scrap where you cannot tell whose bullet killed you
+- 80 bot checks in CI. Most of them are fairness claims, not behaviour ones
 
 **Still to come in M3:** cover as a real concept rather than an emergent one,
 navigation links for the jumps bots currently cannot take, and a 1v1 you sign

@@ -19,6 +19,17 @@ extends Node
 @export var controller_path: NodePath = ^".."
 @export var agent_path: NodePath = ^"../NavigationAgent3D"
 
+## Volume this bot is allowed to walk in. Set by [BotDirector]: a duel-room bot
+## gets its room, a free-roaming one gets the main arena.
+##
+## Confinement is on movement only, never on senses. A bot that stopped being
+## able to *see* you the moment you stepped outside its box would let you shoot
+## it from the doorway with impunity, which is a worse lie than a bot that
+## wanders -- so it still fights back at anyone it can genuinely see, it just
+## will not follow them out.
+var bounds: AABB = AABB()
+var is_confined: bool = false
+
 var controller: PlayerController
 var agent: NavigationAgent3D
 var senses: BotSenses
@@ -100,8 +111,19 @@ func fill_command(cmd: InputCommand, delta: float) -> void:
 
 	fight_commit = maxf(fight_commit - delta, 0.0)
 	senses.update(_enemies(), delta)
-	machine.update(cmd, delta)
 
+	# Out of its volume before the states get a say. Clamped goals and blocked
+	# steps should make this unreachable, but "should" is doing a lot of work
+	# in a system with physics pushes, respawns and geometry -- and a duel bot
+	# that leaks into the corridor quietly ruins the fight next door rather
+	# than failing loudly.
+	if is_confined and not in_bounds(controller.global_position):
+		_walk_home(cmd, delta)
+	else:
+		machine.update(cmd, delta)
+
+	# Always, on both paths: the command carries the view angles the rest of the
+	# tick reads, and walking home still turns the bot.
 	cmd.yaw = controller.yaw
 	cmd.pitch = controller.pitch
 
@@ -117,6 +139,23 @@ func hear_noise(position: Vector3, loudness: float, source: Node = null) -> void
 	if senses == null or controller.is_dead or source == controller:
 		return
 	senses.hear(position, loudness)
+
+## Head back inside, ignoring everything else until we are.
+##
+## Pathed rather than walked at directly. The nearest in-bounds point is
+## usually straight through a wall -- a bot shoved into a sealed duel room is
+## metres from its own arena with a building in between -- so walking at it
+## just presses the bot into the masonry forever. The navigation mesh knows the
+## way out of the door.
+func _walk_home(cmd: InputCommand, delta: float) -> void:
+	var home := clamp_to_bounds(controller.global_position)
+	set_goal(home)
+	if not follow_path(cmd):
+		var offset := home - controller.global_position
+		offset.y = 0.0
+		if offset.length_squared() > 0.01:
+			move_in_direction(offset.normalized(), cmd)
+	aim_towards(home + Vector3.UP * 1.2, delta)
 
 ## Everyone this bot is willing to shoot at.
 ##
@@ -140,6 +179,7 @@ func _enemies() -> Array:
 func set_goal(position: Vector3) -> void:
 	if agent == null:
 		return
+	position = clamp_to_bounds(position)
 	# Always submit the first goal. NavigationAgent3D does not consider itself
 	# to have a destination until target_position has actually been assigned,
 	# so skipping the assignment because the default Vector3.ZERO happened to
@@ -206,10 +246,29 @@ func resample_aim_error(target_speed: float) -> void:
 
 ## A navigable point roughly [param distance] away in [param direction].
 func nav_point_towards(direction: Vector3, distance: float) -> Vector3:
-	var wanted := controller.global_position + direction.normalized() * distance
+	var wanted := clamp_to_bounds(
+			controller.global_position + direction.normalized() * distance)
 	if agent == null:
 		return wanted
 	return NavigationServer3D.map_get_closest_point(agent.get_navigation_map(), wanted)
+
+## Pull a point inside the bot's allowed volume, with a margin so a clamped
+## goal never lands exactly on a wall the agent then refuses to path to.
+func clamp_to_bounds(point: Vector3) -> Vector3:
+	if not is_confined:
+		return point
+	var margin := 0.8
+	var low := bounds.position + Vector3(margin, 0.0, margin)
+	var high := bounds.end - Vector3(margin, 0.0, margin)
+	return Vector3(clampf(point.x, low.x, high.x), point.y,
+			clampf(point.z, low.z, high.z))
+
+## Whether [param point] is somewhere this bot may stand.
+func in_bounds(point: Vector3) -> bool:
+	if not is_confined:
+		return true
+	return point.x >= bounds.position.x and point.x <= bounds.end.x \
+			and point.z >= bounds.position.z and point.z <= bounds.end.z
 
 ## Whether the bot could walk [param distance] along [param direction] and
 ## still be standing on the navigation mesh.
@@ -220,8 +279,11 @@ func nav_point_towards(direction: Vector3, distance: float) -> Vector3:
 ## only thing stopping a strafing bot from walking off the gap walkway.
 func can_step_towards(direction: Vector3, distance: float) -> bool:
 	if agent == null:
-		return true
+		return in_bounds(controller.global_position
+				+ direction.normalized() * distance)
 	var wanted := controller.global_position + direction.normalized() * distance
+	if not in_bounds(wanted):
+		return false
 	var closest := NavigationServer3D.map_get_closest_point(
 			agent.get_navigation_map(), wanted)
 	# Compared flat: the closest navigable point under a bot standing on a

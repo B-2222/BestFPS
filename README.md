@@ -167,6 +167,33 @@ out of reaction time, turn speed, aim wobble and trigger discipline — never ou
 of extra information. That is a deliberate choice: bots that see through walls
 are much less work and produce opponents you can only avoid, not beat.
 
+### The duel wing — judging one tier at a time
+
+Walk east out of the arena, through the doorway marked **DUEL WING**. Three
+sealed rooms off a corridor, one per difficulty, each signed with the tier's
+name and its actual numbers:
+
+| Room | Reaction | Aim error | Sight |
+|---|---|---|---|
+| **Recruit** | 0.62 s | 5.4° | 34 m |
+| **Regular** | 0.34 s | 2.6° | 55 m |
+| **Veteran** | 0.19 s | 1.1° | 75 m |
+
+Each room holds exactly one bot of that tier, permanently, and **nothing else
+can get in**. Bots are confined to their own room in code as well as by the
+walls, free-roaming bots are held to the main arena, and a bot dropped
+somewhere it does not belong walks back. A baffle wall inside each door means
+the occupant cannot shoot down the corridor at you on your way to a different
+room, and cannot be fought from outside without stepping in.
+
+The rooms are identical apart from their occupant — same size, same cover, same
+spawn distance — so the only variable between them is the profile. That is the
+whole point: it is the difference between "bots feel too hard" and "Veteran
+kills me before I finish the peek". The HUD names the room you are standing in.
+
+Turn them off with **Duel-wing bots** in the settings menu; they are a separate
+roster from the **Bots** count, which only fills the main arena.
+
 Which means the counterplay is real:
 
 | What you do | Why it works |
@@ -210,17 +237,18 @@ godot --headless --path . --script scripts/tests/combat_smoke_test.gd
 godot --headless --path . --script scripts/tests/bot_smoke_test.gd
 ```
 
-124 behavioural checks across the three suites, all exiting non-zero on failure.
+152 behavioural checks across the three suites, all exiting non-zero on failure.
 
 - **Movement (22):** top speed, deceleration, jump apex against `v²/2g`, stair
   climb and descent, the step-height limit, crouch, slide, bunny-hop bounds.
 - **Combat (50):** fire rate, damage, falloff, headshot reward, time-to-kill,
   reload, recoil recovery, and that spread is reproducible from the command tick.
-- **Bots (52):** mostly *fairness* claims rather than behaviour ones — that a
+- **Bots (80):** mostly *fairness* claims rather than behaviour ones — that a
   bot cannot see through a wall or behind itself, does not shoot at a wall
   someone vanished behind, spends its reaction time before firing, hears gunfire
   but not from across the map, forgets a target it has lost, and fires no faster
-  than its weapon allows.
+  than its weapon allows — plus that the duel wing stays isolated: one bot per
+  room, none of them leaves, and fighting one does not pull the others in.
 
 That last suite exists because those bugs are invisible by feel: losing to a bot
 that cheats feels exactly like losing to a good one, so it has to be caught by

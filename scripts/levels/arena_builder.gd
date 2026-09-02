@@ -20,6 +20,49 @@ const MARK_SLIDE_TOP := Vector3(-25.0, 5.0, -8.0)
 const ARENA_SIZE := 80.0
 const WALL_HEIGHT := 6.0
 
+## The duel wing, east of the main arena: three sealed rooms, one per bot
+## difficulty, so a tier can be judged on its own instead of in whatever
+## three-way scrap the main arena happens to be having.
+##
+## Published as data rather than baked into the geometry code, because
+## [BotDirector] has to read the same numbers to confine each bot to its room
+## and to respawn it there. Two copies of these bounds would drift, and the
+## drift would show up as a bot wandering out of a fight you were measuring.
+##
+## Interior is 18 x 18 m. Big enough that closing distance is a decision and a
+## rifle duel is a real one, small enough that nobody spends the fight walking.
+const DUEL_ROOM := 18.0
+const DUEL_WALL := 1.0
+## West edge of the rooms; the access spine runs between the arena wall and it.
+const DUEL_X := 47.0
+## Room centres along Z, north to south, and which profile lives in each.
+const DUEL_PITS: Array = [
+	# z centre, difficulty index, name, one-line character
+	[-22.0, 0, "RECRUIT", "slow to react, sloppy aim, holds back"],
+	[0.0, 1, "REGULAR", "the baseline everything is tuned against"],
+	[22.0, 2, "VETERAN", "fast, accurate, and pushes you"],
+]
+## Doorway in the arena's east wall, and in each room's west wall.
+const DUEL_DOOR_WIDTH := 4.0
+
+## World-space volume a bot in [param index] is allowed to occupy.
+##
+## Deliberately the room's *interior* rather than the room plus its doorway: a
+## bot standing in the door can be shot from the spine by someone who never
+## entered, which is not the duel the room exists to stage.
+static func duel_bounds(index: int) -> AABB:
+	var z: float = DUEL_PITS[index][0]
+	var half := DUEL_ROOM * 0.5
+	return AABB(Vector3(DUEL_X, -1.0, z - half),
+			Vector3(DUEL_ROOM, WALL_HEIGHT + 2.0, DUEL_ROOM))
+
+## Everywhere that is not a duel room. Free-roaming bots are held to this, so
+## one cannot wander into a duel and turn a 1v1 into a 2v1.
+static func main_arena_bounds() -> AABB:
+	var half := ARENA_SIZE * 0.5 - 1.0
+	return AABB(Vector3(-half, -1.0, -half),
+			Vector3(half * 2.0, WALL_HEIGHT + 2.0, half * 2.0))
+
 var _mat_floor: StandardMaterial3D
 var _mat_wall: StandardMaterial3D
 var _mat_step: StandardMaterial3D
@@ -67,6 +110,7 @@ func build() -> void:
 	_build_crouch_tunnel()
 	_build_pillars()
 	_build_shooting_range()
+	_build_duel_wing()
 	_bake_navigation()
 
 # ---------------------------------------------------------------------------
@@ -100,6 +144,117 @@ func _bake_navigation() -> void:
 	mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_ROOT_NODE_CHILDREN
 	_geometry_root.navigation_mesh = mesh
 	_geometry_root.bake_navigation_mesh(false)
+
+## Three sealed rooms east of the arena, one per bot difficulty.
+##
+## The point is isolation. In the main arena a bot fight is whatever the roster
+## happens to be doing, which is fine to play and useless for judging whether
+## Veteran is too hard -- you cannot tell whose bullet killed you. Here the room
+## contains exactly one bot, of exactly one tier, and no other bot can enter.
+##
+## Every room is identical apart from its occupant, so the only variable between
+## them is the profile. Same size, same cover, same spawn distance.
+func _build_duel_wing() -> void:
+	var arena_half := ARENA_SIZE * 0.5
+	var spine_west := arena_half            # 40, the arena wall
+	var spine_east := DUEL_X - DUEL_WALL    # 46, the rooms' west wall
+	var room_east := DUEL_X + DUEL_ROOM     # 65
+	var north: float = float(DUEL_PITS[0][0]) - DUEL_ROOM * 0.5 - DUEL_WALL
+	var south: float = float(DUEL_PITS[DUEL_PITS.size() - 1][0]) + DUEL_ROOM * 0.5 + DUEL_WALL
+
+	# Floor slab for the whole wing, overlapping the arena floor by a metre so
+	# there is no seam to catch a foot on at the doorway.
+	var floor_west := spine_west - 1.0
+	_box("DuelFloor",
+			Vector3(room_east + DUEL_WALL - floor_west, 1.0, south - north),
+			Vector3((floor_west + room_east + DUEL_WALL) * 0.5, -0.5,
+					(north + south) * 0.5), _mat_floor)
+
+	# Outer shell: north, south and east. The west side is the arena's own wall.
+	var wing_width := room_east + DUEL_WALL - spine_west
+	_box("DuelWallNorth", Vector3(wing_width, WALL_HEIGHT, DUEL_WALL),
+			Vector3((spine_west + room_east + DUEL_WALL) * 0.5,
+					WALL_HEIGHT * 0.5, north + DUEL_WALL * 0.5), _mat_wall)
+	_box("DuelWallSouth", Vector3(wing_width, WALL_HEIGHT, DUEL_WALL),
+			Vector3((spine_west + room_east + DUEL_WALL) * 0.5,
+					WALL_HEIGHT * 0.5, south - DUEL_WALL * 0.5), _mat_wall)
+	_box("DuelWallEast", Vector3(DUEL_WALL, WALL_HEIGHT, south - north),
+			Vector3(room_east + DUEL_WALL * 0.5, WALL_HEIGHT * 0.5,
+					(north + south) * 0.5), _mat_wall)
+
+	# Signed from the arena side of the doorway, not from inside the spine.
+	# In the spine it sat on top of the Regular room's own sign, which shares
+	# that sight line, and the two labels overprinted into mush.
+	# Set back into the arena rather than over the doorway. These labels scale
+	# with distance, so a sign you walk right up to fills the screen; nine
+	# metres is where this one reads at its intended size.
+	_heading("DUEL WING ->", Vector3(spine_west - 9.0, 4.6, 0.0), Color(1, 0.82, 0.35))
+	_label("one bot per room, one difficulty each -- nothing else gets in",
+			Vector3(spine_west - 9.0, 3.7, 0.0), Color(1, 1, 1, 0.72))
+
+	# Dividing walls between rooms, and the west wall of each room in segments
+	# so each has its own door.
+	for i in DUEL_PITS.size():
+		var z: float = float(DUEL_PITS[i][0])
+		if i > 0:
+			var previous: float = float(DUEL_PITS[i - 1][0])
+			# Only across the rooms, not across the spine: the spine is the
+			# corridor you walk to reach all three, so dividing it would seal
+			# off every room but the one behind the arena doorway.
+			var divider_width := room_east + DUEL_WALL - spine_east
+			_box("DuelDivider%d" % i,
+					Vector3(divider_width, WALL_HEIGHT, DUEL_WALL),
+					Vector3(spine_east + divider_width * 0.5,
+							WALL_HEIGHT * 0.5, (previous + z) * 0.5), _mat_wall)
+		_build_duel_room(i, z, spine_east, room_east)
+
+## One room, its door, its baffle and its cover.
+func _build_duel_room(index: int, z: float, west: float, east: float) -> void:
+	var pit: Array = DUEL_PITS[index]
+	var half := DUEL_ROOM * 0.5
+	var door_half := DUEL_DOOR_WIDTH * 0.5
+	var segment := half - door_half
+
+	# West wall in two pieces, leaving a door on the room's centre line.
+	for side in [-1.0, 1.0]:
+		_box("DuelRoomWall%d_%s" % [index, "N" if side < 0.0 else "S"],
+				Vector3(DUEL_WALL, WALL_HEIGHT, segment),
+				Vector3(west + DUEL_WALL * 0.5, WALL_HEIGHT * 0.5,
+						z + side * (door_half + segment * 0.5)), _mat_wall)
+
+	# A baffle three metres inside the door, wider than the door itself.
+	#
+	# Without it there is a clean line from the access spine into the middle of
+	# the room, which breaks the isolation twice over: the occupant can shoot
+	# someone who is walking past on their way to a different room, and you can
+	# fight it from outside without ever entering. It doubles as the room's
+	# first piece of cover, which is the thing a duel most needs.
+	_box("DuelBaffle%d" % index,
+			Vector3(DUEL_WALL, WALL_HEIGHT, DUEL_DOOR_WIDTH + 3.0),
+			Vector3(west + 4.0, WALL_HEIGHT * 0.5, z), _mat_wall)
+
+	# Cover: one tall block to break sight lines and two low ones to crouch
+	# behind, placed off-centre so neither side of the room is the safe side.
+	_box("DuelCoverTall%d" % index, Vector3(2.0, 3.2, 2.0),
+			Vector3(west + 11.0, 1.6, z - 4.5), _mat_jump)
+	_box("DuelCoverLow%dA" % index, Vector3(4.0, 1.1, 1.2),
+			Vector3(west + 8.0, 0.55, z + 5.0), _mat_step)
+	_box("DuelCoverLow%dB" % index, Vector3(1.2, 1.1, 4.0),
+			Vector3(east - 4.0, 0.55, z + 1.0), _mat_step)
+
+	var colour: Color = [Color(0.55, 0.9, 0.6), Color(1.0, 0.82, 0.35),
+			Color(1.0, 0.45, 0.42)][index]
+	# Outside the door, so you know what you are walking into.
+	_heading("%s" % pit[2], Vector3(west - 1.6, 3.6, z), colour)
+	_label(pit[3], Vector3(west - 1.6, 2.7, z), Color(1, 1, 1, 0.72))
+	# And inside, with the numbers, so a verdict can be specific.
+	var profile := load("res://assets/config/bots/%s.tres"
+			% ["easy", "normal", "hard"][index]) as BotProfile
+	if profile != null:
+		_label("reaction %.2f s    aim error %.1f deg    sees %.0f m"
+				% [profile.reaction_time, profile.aim_error_degrees,
+					profile.vision_range],
+				Vector3(east - 1.2, 2.6, z), colour, 1.1)
 
 ## A 1 m world-space grid on everything. This is not decoration: without a
 ## regular reference you cannot perceive speed, and "does this feel fast?" is
@@ -246,8 +401,14 @@ func _build_shell() -> void:
 			Vector3(0, WALL_HEIGHT * 0.5, half), _mat_wall)
 	_box("WallWest", Vector3(1.0, WALL_HEIGHT, ARENA_SIZE),
 			Vector3(-half, WALL_HEIGHT * 0.5, 0), _mat_wall)
-	_box("WallEast", Vector3(1.0, WALL_HEIGHT, ARENA_SIZE),
-			Vector3(half, WALL_HEIGHT * 0.5, 0), _mat_wall)
+	# The east wall is built in two halves rather than one box: the duel wing
+	# is reached through a doorway in the middle of it.
+	var door_half := DUEL_DOOR_WIDTH * 0.5
+	var segment := half - door_half
+	_box("WallEastNorth", Vector3(1.0, WALL_HEIGHT, segment),
+			Vector3(half, WALL_HEIGHT * 0.5, -door_half - segment * 0.5), _mat_wall)
+	_box("WallEastSouth", Vector3(1.0, WALL_HEIGHT, segment),
+			Vector3(half, WALL_HEIGHT * 0.5, door_half + segment * 0.5), _mat_wall)
 
 ## A measured straight lane. Sprint it and count: at 9 m/s the 30 m mark should
 ## arrive in about 3.3 s. This is how you tell "fast" from "feels fast".

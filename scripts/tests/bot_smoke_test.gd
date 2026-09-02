@@ -86,6 +86,10 @@ func _wire() -> void:
 	# setter persists to the user's settings file, and a test must not edit the
 	# developer's preferences to run.
 	_director.bot_count = 0
+	# The duel rooms hold their own permanent roster, which would show up in
+	# every roster-size assertion below and shoot at the player in half the
+	# phases. They get their own phase at the end instead.
+	_director.duel_pits_enabled = false
 	_player.health.damaged.connect(func(info: DamageInfo, _remaining: float) -> void:
 		_player_hits += 1
 		_player_damage += info.amount)
@@ -161,6 +165,25 @@ func _look_at(bot: PlayerController, point: Vector3) -> void:
 	bot.yaw = atan2(-to.x, -to.z)
 	bot.pitch = 0.0
 	bot.apply_view()
+
+func _duel(index: int) -> PlayerController:
+	if index >= _director.duel_bots.size():
+		return null
+	return _director.duel_bots[index]
+
+## Somewhere in the access spine, level with a room's door but outside it.
+func _spine_point(room: int) -> Vector3:
+	var bounds := ArenaBuilder.duel_bounds(room)
+	return Vector3(bounds.position.x - 3.0, 1.0, bounds.get_center().z)
+
+func _all_duel_bots_home() -> bool:
+	for i in ArenaBuilder.DUEL_PITS.size():
+		var bot := _duel(i)
+		if bot == null or not is_instance_valid(bot):
+			return false
+		if not BotDirector._inside(ArenaBuilder.duel_bounds(i), bot.global_position):
+			return false
+	return true
 
 func _reset_counters() -> void:
 	_ticks_to_engage = -1
@@ -643,6 +666,147 @@ func _build_plan() -> void:
 			_expect(total < _start_distance,
 					"they damaged each other (%.0f hp -> %.0f hp)"
 					% [_start_distance, total]),
+	},
+	{
+		"name": "duel wing puts one bot of each tier in its own room",
+		"ticks": 240,
+		"setup": func() -> void:
+			_reset_counters()
+			# Well away from all three, so nothing is fighting while the wing
+			# fills and the roster can be counted at rest.
+			_stand_player(Vector3(0.0, 1.0, 0.0))
+			_director.bot_count = 0
+			_director.duel_pits_enabled = true,
+		"check": func() -> void:
+			_expect(_director.duel_bots.size() == ArenaBuilder.DUEL_PITS.size(),
+					"one bot per room (%d of %d)"
+					% [_director.duel_bots.size(), ArenaBuilder.DUEL_PITS.size()])
+			for i in ArenaBuilder.DUEL_PITS.size():
+				var bot := _duel(i)
+				_expect(bot != null and is_instance_valid(bot),
+						"room %d is occupied" % i)
+				if bot == null:
+					continue
+				var bounds := ArenaBuilder.duel_bounds(i)
+				_expect(BotDirector._inside(bounds, bot.global_position),
+						"%s spawned inside its own room" % bot.name)
+				var brain := _brain(bot)
+				var wanted: String = ["Recruit", "Regular", "Veteran"][i]
+				_expect(brain.profile.display_name == wanted,
+						"room %d holds a %s, got %s"
+						% [i, wanted, brain.profile.display_name])
+				# The rooms are only a fair comparison if the tier is the one
+				# thing that changes between them.
+				var rt := brain.weapon()
+				_expect(rt != null and rt.resource.slot == BotDirector.DUEL_WEAPON,
+						"room %d carries the same weapon as the others (%s)"
+						% [i, "none" if rt == null else rt.resource.display_name]),
+	},
+	{
+		"name": "a bot in one room cannot see the corridor outside another",
+		"ticks": 120,
+		"setup": func() -> void:
+			_reset_counters()
+			# Standing in the spine outside the Recruit room, which is where
+			# you are every time you walk to it.
+			_stand_player(_spine_point(0)),
+		"during": func(tick: int) -> void:
+			if tick != 60:
+				return
+			# The claim that makes the wing worth building: walking to one room
+			# must not put you in a fight with the occupants of the others.
+			for i in [1, 2]:
+				var bot := _duel(i)
+				if bot == null:
+					continue
+				_expect(not _brain(bot).senses.can_see(_player),
+						"%s cannot see the corridor outside room 0" % bot.name)
+				_expect(_brain(bot).senses.visible_target == null,
+						"%s has no target while you approach room 0" % bot.name),
+		"check": func() -> void:
+			_expect(_all_duel_bots_home(), "every duel bot stayed in its room"),
+	},
+	{
+		"name": "fighting one duel bot does not pull the others in",
+		"ticks": 720,
+		"setup": func() -> void:
+			_reset_counters()
+			var bounds := ArenaBuilder.duel_bounds(1)
+			var centre := bounds.get_center()
+			# Inside the Regular room, past the baffle.
+			_stand_player(Vector3(bounds.end.x - 3.0, 1.0, centre.z))
+			var bot := _duel(1)
+			if bot != null:
+				_watch_shots(bot),
+		"during": func(tick: int) -> void:
+			_player.health.heal(100.0)
+			var bot := _duel(1)
+			if bot != null and is_instance_valid(bot):
+				_observe(bot, tick)
+			# Checked every tick, not just at the end: a bot that leaves and
+			# comes back would pass an end-state check while having spent the
+			# fight somewhere it should never have been.
+			if not _all_duel_bots_home():
+				_fired_during_reload = true,
+		"check": func() -> void:
+			_expect(_observed_states.has(&"bot_engage"),
+					"the room's own bot fought you")
+			_expect(_shots > 0, "and shot at you (%d)" % _shots)
+			_expect(not _fired_during_reload,
+					"no duel bot left its room at any point during the fight")
+			_expect(_player_hits > 0,
+					"you took fire from it (%d hits)" % _player_hits),
+	},
+	{
+		"name": "a killed duel bot comes back in its own room",
+		"ticks": 900,
+		"setup": func() -> void:
+			_reset_counters()
+			_stand_player(Vector3(0.0, 1.0, 0.0))
+			var bot := _duel(2)
+			if bot == null:
+				return
+			var info := DamageInfo.new()
+			info.amount = bot.health.max_health * 2.0
+			info.source = _player
+			info.victim = bot
+			bot.health.apply_damage(info),
+		"check": func() -> void:
+			var bot := _duel(2)
+			_expect(bot != null and is_instance_valid(bot), "still there")
+			if bot == null:
+				return
+			_expect(bot.health.is_alive, "revived")
+			_expect(BotDirector._inside(ArenaBuilder.duel_bounds(2),
+					bot.global_position),
+					"respawned inside the Veteran room, not out in the arena"),
+	},
+	{
+		"name": "a roaming bot shoved into a duel room walks back out",
+		"ticks": 1200,
+		"setup": func() -> void:
+			_reset_counters()
+			_stand_player(Vector3(0.0, 1.0, 0.0))
+			_director.bot_count = 1,
+		"during": func(tick: int) -> void:
+			# Dropped in once the roster has actually spawned one.
+			if tick == 120 and _bot() != null:
+				var bounds := ArenaBuilder.duel_bounds(0)
+				var centre := bounds.get_center()
+				_bot().global_position = Vector3(centre.x, 1.0, centre.z)
+				_bot().velocity = Vector3.ZERO,
+		"check": func() -> void:
+			var bot := _bot()
+			_expect(bot != null, "the roaming bot still exists")
+			if bot == null:
+				return
+			_expect(not BotDirector._inside(ArenaBuilder.duel_bounds(0),
+					bot.global_position),
+					"found its way out of the duel room (now at %s)"
+					% str(bot.global_position.round()))
+			_expect(BotDirector._inside(ArenaBuilder.main_arena_bounds(),
+					bot.global_position),
+					"and back into the arena it belongs in"),
 	},
 	]
 

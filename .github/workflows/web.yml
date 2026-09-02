@@ -82,11 +82,13 @@ jobs:
         run: godot --headless --script scripts/tests/combat_smoke_test.gd
 
       - name: Bot smoke test
-        # 51 checks. Mostly fairness claims rather than behaviour: that a bot
+        # 80 checks. Mostly fairness claims rather than behaviour: that a bot
         # cannot see through a wall or behind itself, cannot shoot faster than
         # the weapon allows, spends its reaction time before firing, and
         # forgets a target it has lost. Those are exactly the bugs that are
-        # invisible by feel, because losing to them feels like losing.
+        # invisible by feel, because losing to them feels like losing. Also
+        # that the duel wing stays isolated: one bot per room, no bot leaves,
+        # and fighting one does not pull the others in.
         run: godot --headless --script scripts/tests/bot_smoke_test.gd
 
       - name: Export web build
