@@ -91,6 +91,14 @@ jobs:
         # and fighting one does not pull the others in.
         run: godot --headless --script scripts/tests/bot_smoke_test.gd
 
+      - name: Net smoke test
+        # 51 checks. The join code is arithmetic and is checked across the whole
+        # 192.168.x space, because a code that decodes to a plausible but wrong
+        # address looks like a network fault and sends someone into their
+        # router settings. The handshake half runs a real ENet host and client
+        # over loopback in one process.
+        run: godot --headless --script scripts/tests/net_smoke_test.gd
+
       - name: Export web build
         run: |
           set -euo pipefail

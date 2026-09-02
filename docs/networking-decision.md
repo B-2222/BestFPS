@@ -72,3 +72,41 @@ M5 is *implementation* rather than *rearchitecture*.
 
 The honest fallback, if M5 proves too hard: ship single-player and bots, which
 is a complete game on its own, and revisit multiplayer separately.
+
+---
+
+## Transport, decided in M5
+
+**ENet over UDP, and multiplayer is a desktop-build feature.** This is the part
+that had to be found out by trying rather than by planning, so it is written
+down here before anyone builds on the wrong assumption.
+
+The goal was the one that was asked for: two people on the same network, one
+reads out a join code, the other types it in, no accounts and no servers. ENet
+is Godot's default high-level peer and does exactly that — the host opens a UDP
+port, the code *is* its LAN address and port, and nothing else has to exist.
+
+**It does not work from the browser build, and neither does the alternative.**
+
+- Browsers cannot open raw UDP sockets, so ENet is out.
+- `WebSocketMultiplayerPeer` would work in principle, but a browser cannot
+  accept incoming connections, so the host must be a desktop build. Worse, the
+  page on GitHub Pages is served over HTTPS, and a page served over HTTPS may
+  not open an insecure `ws://` connection. A LAN address cannot have a
+  certificate, so `wss://` is not available either.
+- WebRTC would work, but needs a signalling server somebody has to run and pay
+  for, which is the opposite of the "no infrastructure" property that made LAN
+  attractive in the first place.
+
+So: **the Pages build stays single-player against bots, and LAN multiplayer
+ships in the desktop build.** Browser multiplayer, if it is ever wanted, is an
+internet-hosted relay and a different milestone — not a variation on this one.
+
+### What the join code is
+
+Four bytes of IPv4 and two of port, 48 bits, base32 into ten characters over an
+alphabet with no `0`, `O`, `1` or `I` in it, because codes get read out loud
+across a room. Nothing is looked up; the code *is* the address. A mistyped
+character is refused rather than corrected, since every plausible correction
+maps one valid code onto a different valid one — and silently connecting
+somebody to the wrong machine looks like a network fault, not a typo.
