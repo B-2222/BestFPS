@@ -42,14 +42,35 @@ through pointer lock. **Judge the movement feel on desktop**, not here.
 
 ### Playing with someone else
 
-Multiplayer is **LAN only and desktop only**. The browser build cannot do it:
-browsers have no raw UDP sockets, and the WebSocket alternative needs an HTTPS
-page to open an insecure connection to a LAN address, which browsers refuse and
-a LAN address cannot get a certificate for. Reasoning in
-[docs/networking-decision.md](docs/networking-decision.md).
+Multiplayer is **same-network only**, and there are two ways in depending on
+whether you can run a downloaded app.
 
-So both players download a desktop build. Every push builds all three: open the
-latest run under
+#### In the browser — nothing to install
+
+Both players open the play link, press **F5**, and swap codes:
+
+1. One clicks **Host in this browser**. A code appears — about 400 characters.
+2. **Copy my code**, and send it however you already talk. Messages, Discord,
+   email, anything.
+3. The other pastes it in and clicks **Join**. They get a reply code.
+4. They send that back; the host pastes it and clicks **Connect**.
+
+Three copy-pastes rather than one spoken code. That is the entire price of
+having no server involved: WebRTC needs something to introduce two peers, and
+the alternative to passing codes by hand is running a signalling server, which
+is a strange thing to need to put two people in the same room together.
+
+If it never connects, the likely cause is the network rather than the game.
+Guest and school wifi often have **client isolation**, which stops devices
+talking to each other directly, and nothing in the game can work around that.
+Home wifi is normally fine.
+
+#### Desktop builds — one spoken code
+
+If you can run a downloaded app, the desktop build has a nicer flow: the host
+gets a ten-character code to read out, and that is the whole exchange.
+
+Every push builds all three: open the latest run under
 [Actions](https://github.com/B-2222/BestFPS/actions), scroll to **Artifacts**,
 and take `BestFPS-macOS`, `BestFPS-Windows` or `BestFPS-Linux`.
 
@@ -67,6 +88,10 @@ Then, in game, press **F5** for the multiplayer panel. One player clicks
 **Host** and reads out the ten-character code; the other types it in and clicks
 **Join**. You both need to be on the same network — the code is your LAN
 address, not an account.
+
+On a **managed Mac** where Terminal is locked, unsigned apps are usually
+refused outright no matter what you do to the quarantine flag. Use the browser
+route above instead; it exists for exactly that case.
 
 The host simulates everything, so bots and the duel wing run on the host's
 machine and everyone sees the same fight.
