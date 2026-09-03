@@ -37,6 +37,7 @@ const REBINDABLE: Array = [
 	[&"weapon_4", "Weapon 4"],
 	[&"respawn", "Respawn"],
 	[&"debug_toggle", "Toggle stats"],
+	[&"multiplayer_menu", "Multiplayer"],
 ]
 
 ## Multiplier on the tuned sensitivity in PlayerConfig, so the design default

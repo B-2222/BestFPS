@@ -78,6 +78,53 @@ func clear_one_shots() -> void:
 	reload_pressed = false
 	weapon_slot = -1
 
+## Pack into something an RPC can carry.
+##
+## An Array of primitives rather than a bit-packed PackedByteArray. On a LAN
+## the difference is a few hundred bytes a second against a link with megabytes
+## to spare, and a readable encoding is worth far more right now than a saving
+## nobody can measure. Bit-packing is the optimisation for internet play, and it
+## is contained to these two functions when it happens.
+##
+## The buttons travel as one bitfield because they are booleans and a bitfield
+## is the one place packing costs nothing in clarity.
+func to_wire() -> Array:
+	var buttons := 0
+	if jump_pressed: buttons |= 1
+	if jump_held: buttons |= 2
+	if crouch_pressed: buttons |= 4
+	if crouch_held: buttons |= 8
+	if sprint_held: buttons |= 16
+	if fire_pressed: buttons |= 32
+	if fire_held: buttons |= 64
+	if reload_pressed: buttons |= 128
+	if aim_held: buttons |= 256
+	return [tick, move_axis.x, move_axis.y, yaw, pitch, buttons, weapon_slot]
+
+## Unpack, defensively. This is data from another machine, so a short or
+## malformed array must leave the command untouched rather than half-applied --
+## a half-applied command is a character that walks somewhere nobody asked it
+## to, which is indistinguishable from a physics bug.
+func from_wire(wire: Array) -> bool:
+	if wire.size() != 7:
+		return false
+	tick = int(wire[0])
+	move_axis = Vector2(float(wire[1]), float(wire[2])).limit_length(1.0)
+	yaw = float(wire[3])
+	pitch = float(wire[4])
+	var buttons := int(wire[5])
+	jump_pressed = (buttons & 1) != 0
+	jump_held = (buttons & 2) != 0
+	crouch_pressed = (buttons & 4) != 0
+	crouch_held = (buttons & 8) != 0
+	sprint_held = (buttons & 16) != 0
+	fire_pressed = (buttons & 32) != 0
+	fire_held = (buttons & 64) != 0
+	reload_pressed = (buttons & 128) != 0
+	aim_held = (buttons & 256) != 0
+	weapon_slot = clampi(int(wire[6]), -1, 9)
+	return true
+
 func duplicate_command() -> InputCommand:
 	var c := InputCommand.new()
 	c.move_axis = move_axis

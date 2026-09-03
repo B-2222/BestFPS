@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/levels/arena_builder.gd" id="1_arena"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scripts/ui/combat_hud.gd" id="5_combat"]
 [ext_resource type="Script" path="res://scripts/ui/settings_menu.gd" id="6_settings"]
 [ext_resource type="Script" path="res://scripts/bots/bot_director.gd" id="7_bots"]
+[ext_resource type="Script" path="res://scripts/net/net_arena.gd" id="8_net"]
+[ext_resource type="Script" path="res://scripts/ui/multiplayer_menu.gd" id="10_lobby"]
 
 [node name="TestArena" type="Node3D"]
 script = ExtResource("1_arena")
@@ -16,6 +18,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 
 [node name="BotDirector" type="Node3D" parent="."]
 script = ExtResource("7_bots")
+
+[node name="NetArena" type="Node3D" parent="."]
+script = ExtResource("8_net")
 
 [node name="DebugHUD" type="CanvasLayer" parent="."]
 script = ExtResource("3_hud")
@@ -28,3 +33,6 @@ script = ExtResource("5_combat")
 
 [node name="SettingsMenu" type="CanvasLayer" parent="."]
 script = ExtResource("6_settings")
+
+[node name="MultiplayerMenu" type="CanvasLayer" parent="."]
+script = ExtResource("10_lobby")

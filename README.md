@@ -63,9 +63,13 @@ xattr -dr com.apple.quarantine /path/to/BestFPS.app
 Then open it normally. (Right-click → Open works too, but has to be repeated.)
 It is a universal binary, so it runs natively on both Apple Silicon and Intel.
 
-Then: one player picks **Host** and reads out the ten-character join code; the
-other picks **Join** and types it in. You both need to be on the same network —
-the code is your LAN address, not an account.
+Then, in game, press **F5** for the multiplayer panel. One player clicks
+**Host** and reads out the ten-character code; the other types it in and clicks
+**Join**. You both need to be on the same network — the code is your LAN
+address, not an account.
+
+The host simulates everything, so bots and the duel wing run on the host's
+machine and everyone sees the same fight.
 
 ### On desktop
 

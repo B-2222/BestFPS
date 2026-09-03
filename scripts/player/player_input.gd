@@ -81,6 +81,13 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	if event.is_action_pressed(&"multiplayer_menu"):
+		var lobby := get_tree().get_first_node_in_group(&"multiplayer_menu")
+		if lobby != null:
+			lobby.open()
+			get_viewport().set_input_as_handled()
+			return
+
 	if event.is_action_pressed(&"respawn"):
 		_controller.respawn()
 		return

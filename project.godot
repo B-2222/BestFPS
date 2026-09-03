@@ -20,6 +20,9 @@ config/features=PackedStringArray("4.4", "Forward Plus")
 ; Owns rebindable input and persisted preferences. Loaded before any scene so
 ; the InputMap is already patched by the time a player reads from it.
 GameSettings="*res://scripts/core/game_settings.gd"
+; Owns the connection and the lobby roster. Autoloaded so it survives a level
+; reload -- a lobby that dissolved every time the map changed would be useless.
+Net="*res://scripts/net/net_session.gd"
 
 [display]
 
@@ -74,6 +77,11 @@ sprint={
 debug_toggle={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":0,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":4194334,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+]
+}
+multiplayer_menu={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":0,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":4194336,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
 ]
 }
 respawn={

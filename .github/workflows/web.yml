@@ -106,6 +106,14 @@ jobs:
         # over loopback in one process.
         run: godot --headless --script scripts/tests/net_smoke_test.gd
 
+      - name: Net play test
+        # Two real Godot processes over a real socket on loopback: one hosts,
+        # one joins with a code. Proves the halves a single process cannot --
+        # that a client's input crosses the wire and drives its character
+        # through the same movement code everything else uses, and that the
+        # client draws the host where the host actually is.
+        run: bash scripts/tests/run_net_play.sh
+
       - name: Export web build
         run: |
           set -euo pipefail

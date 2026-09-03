@@ -54,14 +54,30 @@ var local_name: String = "Player"
 
 var _connect_timer: float = 0.0
 
-func _ready() -> void:
+var _signals_ready: bool = false
+
+## Connect on first use rather than in _ready().
+##
+## Node.multiplayer resolves through the tree, and it is still null while the
+## tree is being brought up -- an autoload's _ready() can run early enough to
+## see nothing there. Connecting lazily is the same fix this project has needed
+## for CameraRig, ViewModel, AudioDirector and BotBrain, for the same reason:
+## something below asked for something above before it existed.
+func _ensure_signals() -> bool:
+	if _signals_ready:
+		return true
+	if multiplayer == null:
+		return false
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	_signals_ready = true
+	return true
 
 func _process(delta: float) -> void:
+	_ensure_signals()
 	if link != Link.JOINING:
 		return
 	_connect_timer -= delta
@@ -88,6 +104,9 @@ func is_authority() -> bool:
 ## empty in that case and the lobby says so, rather than the button doing
 ## nothing and the player never learning why.
 func host(player_name: String = "") -> bool:
+	if not _ensure_signals():
+		failed.emit("Networking is not ready yet. Try again in a moment.")
+		return false
 	leave()
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_server(DEFAULT_PORT, MAX_PLAYERS - 1)
@@ -103,11 +122,10 @@ func host(player_name: String = "") -> bool:
 	roster = {HOST_ID: {"name": local_name, "bot": false}}
 	_set_link(Link.HOSTING)
 	lobby_changed.emit()
-	if join_code == "":
-		failed.emit("Hosting on port %d, but I could not work out this "
-				% DEFAULT_PORT + "machine's network address, so there is no "
-				+ "join code. Tell the other player your IP address and have "
-				+ "them use Join by address.")
+	# Deliberately not emitted as a failure. Hosting succeeded; there is just
+	# no code to hand out, and the lobby already says exactly that where the
+	# code would be. Routing it through the error channel made an
+	# informational message look like something had gone wrong.
 	return true
 
 ## A code for an address the player typed in themselves, for when discovery
@@ -116,6 +134,9 @@ static func code_for(address: String, port: int = DEFAULT_PORT) -> String:
 	return JoinCode.encode(address, port)
 
 func join(code: String, player_name: String = "") -> bool:
+	if not _ensure_signals():
+		failed.emit("Networking is not ready yet. Try again in a moment.")
+		return false
 	var parsed := JoinCode.decode(code)
 	if not parsed["ok"]:
 		failed.emit(parsed["error"])
@@ -135,10 +156,11 @@ func join(code: String, player_name: String = "") -> bool:
 	return true
 
 func leave() -> void:
-	if multiplayer.multiplayer_peer != null \
+	if multiplayer != null and multiplayer.multiplayer_peer != null \
 			and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
 		multiplayer.multiplayer_peer.close()
-	multiplayer.multiplayer_peer = null
+	if multiplayer != null:
+		multiplayer.multiplayer_peer = null
 	roster.clear()
 	join_code = ""
 	_set_link(Link.OFFLINE)

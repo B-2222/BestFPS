@@ -17,7 +17,7 @@ than in whatever scrap the arena is having.
 | M2 | Gunplay + networking spike | Done — four weapons, optic, sound, spike |
 | M3 | Bots | **In progress** — senses, states, difficulty, duel wing |
 | M4 | The arena | Not started |
-| M5 | Multiplayer | Not started |
+| M5 | Multiplayer | **In progress** — LAN sessions, join code, replication |
 | M6 | Polish | Not started |
 
 ---
@@ -279,6 +279,35 @@ off by playing.
 ## M5 — Multiplayer
 
 **Goal:** the model chosen in M2, implemented properly.
+
+### Delivered so far
+
+- **LAN sessions with a join code.** ENet over UDP: the host opens a port, the
+  code *is* its address, and nothing else has to exist — no account, no relay,
+  no signalling server
+- The host simulates everything. Clients send `InputCommand`s and get snapshots
+  back, and remote players are driven through the same `fill_command` call the
+  local player and the bots use — so being remote cannot make a character
+  behave differently, because there is one implementation and it is not
+  parameterised by who is driving it
+- Clients predict their own movement and are corrected by eased snapshots.
+  Full rollback-and-replay reconciliation is deliberately deferred: on a LAN
+  the disagreement it fixes is sub-centimetre
+- Bots and the duel wing run on the host only, and replicate to clients as
+  ordinary snapshot-driven bodies
+- A client renders whatever the snapshot mentions and nothing else, so it needs
+  no knowledge of the roster, the bot count or the duel wing
+- Desktop builds for macOS, Windows and Linux on every push
+
+**Found by building it, and it changes what ships where:** multiplayer is a
+desktop feature. Browsers have no raw UDP, and the WebSocket alternative cannot
+be made to work from an HTTPS page to a LAN address. The browser build stays
+single-player against bots. Written up in `docs/networking-decision.md`.
+
+**Still to come in M5:** lag compensation with hitbox rewind (the recorder
+exists, nothing rewinds yet), replicated shooting and kill feed across peers,
+a lobby that can be configured before the match starts, and interest management
+once there is more world than one arena.
 
 **Scope:**
 - Server-authoritative simulation with client-side prediction and reconciliation
