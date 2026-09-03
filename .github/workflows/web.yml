@@ -1,6 +1,13 @@
-name: Web build
+name: Build
 
-# Builds the browser version and publishes it to GitHub Pages.
+# Builds the browser version and publishes it to GitHub Pages, and builds the
+# desktop versions and attaches them to the run.
+#
+# Multiplayer is desktop-only -- browsers cannot open raw UDP sockets, and the
+# WebSocket alternative cannot be made to work from an HTTPS page to a LAN
+# address. So the Pages link is the try-it-instantly build, and playing with
+# someone else means downloading a desktop build from the run's artifacts.
+# See docs/networking-decision.md.
 #
 # Requires Settings -> Pages -> Build and deployment -> Source: "GitHub Actions",
 # which is already set and is the one thing a workflow cannot set for itself.
@@ -113,6 +120,40 @@ jobs:
             echo "::error::Threaded web build detected. Set variant/thread_support=false in export_presets.cfg."
             exit 1
           fi
+
+      - name: Export desktop builds
+        run: |
+          set -euo pipefail
+          mkdir -p build/mac build/windows build/linux
+          godot --headless --export-release "macOS"
+          godot --headless --export-release "Windows"
+          godot --headless --export-release "Linux"
+          test -s build/mac/BestFPS.zip
+          test -s build/windows/BestFPS.exe
+          test -s build/linux/BestFPS.x86_64
+          # The Mac build has to be universal, or an Apple Silicon machine
+          # either refuses it or quietly drags in Rosetta.
+          unzip -p build/mac/BestFPS.zip "BestFPS.app/Contents/MacOS/BestFPS" > /tmp/macbin
+          file /tmp/macbin | grep -q "universal binary" \
+            || { echo "::error::macOS build is not a universal binary."; exit 1; }
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestFPS-macOS
+          path: build/mac/BestFPS.zip
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestFPS-Windows
+          path: build/windows/BestFPS.exe
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestFPS-Linux
+          path: build/linux/BestFPS.x86_64
 
       - name: Disable Jekyll
         # Pages artifacts are served as-is, but this costs nothing and stops a

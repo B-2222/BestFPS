@@ -40,6 +40,33 @@ through pointer lock. **Judge the movement feel on desktop**, not here.
 > set to source **"GitHub Actions"**; that is the one setting a workflow cannot
 > set for itself.
 
+### Playing with someone else
+
+Multiplayer is **LAN only and desktop only**. The browser build cannot do it:
+browsers have no raw UDP sockets, and the WebSocket alternative needs an HTTPS
+page to open an insecure connection to a LAN address, which browsers refuse and
+a LAN address cannot get a certificate for. Reasoning in
+[docs/networking-decision.md](docs/networking-decision.md).
+
+So both players download a desktop build. Every push builds all three: open the
+latest run under
+[Actions](https://github.com/B-2222/BestFPS/actions), scroll to **Artifacts**,
+and take `BestFPS-macOS`, `BestFPS-Windows` or `BestFPS-Linux`.
+
+**On macOS**, the build is unsigned, so Gatekeeper will refuse it on the first
+open. Unzip it, then once:
+
+```sh
+xattr -dr com.apple.quarantine /path/to/BestFPS.app
+```
+
+Then open it normally. (Right-click → Open works too, but has to be repeated.)
+It is a universal binary, so it runs natively on both Apple Silicon and Intel.
+
+Then: one player picks **Host** and reads out the ten-character join code; the
+other picks **Join** and types it in. You both need to be on the same network —
+the code is your LAN address, not an account.
+
 ### On desktop
 
 1. Install **Godot 4.4** or newer (standard build, not .NET) — <https://godotengine.org/download>
