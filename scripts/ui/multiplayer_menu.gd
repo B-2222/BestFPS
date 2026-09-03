@@ -33,6 +33,9 @@ var _p2p_copy: Button
 var _p2p_in: TextEdit
 var _p2p_in_label: Label
 var _p2p_action: Button
+var _p2p_paste: Button
+## Frames left to wait for the browser to answer a clipboard read.
+var _paste_wait: int = 0
 var _p2p_host: Button
 var _lan_section: VBoxContainer
 ## What we have been handed to give the other player.
@@ -275,6 +278,7 @@ func _build() -> void:
 		DisplayServer.clipboard_set(_our_blob)
 		_message.text = "Copied. Send it to the other player however you like.")
 	_p2p_action.pressed.connect(_p2p_pressed)
+	_p2p_paste.pressed.connect(_paste_clipboard)
 	_join_button.pressed.connect(_do_join)
 	_entry.text_submitted.connect(func(_text: String) -> void: _do_join())
 	_leave_button.pressed.connect(func() -> void:
@@ -316,8 +320,24 @@ func _build_p2p(column: VBoxContainer) -> void:
 	_p2p_in.add_theme_font_size_override("font_size", 10)
 	_p2p_section.add_child(_p2p_in)
 
+	# A paste *button*, not just Ctrl+V into the box.
+	#
+	# Pasting is the single most important interaction in this whole flow, and
+	# leaving it to the text field's own key handling makes it depend on how
+	# one engine's canvas happens to route a browser paste event. A button that
+	# asks the browser for the clipboard directly is one click, works the same
+	# on every machine, and cannot be defeated by a key combination the canvas
+	# never sees.
+	var action_row := HBoxContainer.new()
+	action_row.add_theme_constant_override("separation", 8)
+	_p2p_paste = Button.new()
+	_p2p_paste.text = "Paste"
+	_p2p_paste.custom_minimum_size = Vector2(96, 0)
+	action_row.add_child(_p2p_paste)
 	_p2p_action = Button.new()
-	_p2p_section.add_child(_p2p_action)
+	_p2p_action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_row.add_child(_p2p_action)
+	_p2p_section.add_child(action_row)
 
 func _on_blob_ready(blob: String) -> void:
 	_our_blob = blob
@@ -340,9 +360,11 @@ func _refresh_p2p(hosting: bool, joined: bool, busy: bool) -> void:
 		_p2p_in_label.text = "Connected."
 		_p2p_in.visible = false
 		_p2p_action.visible = false
+		_p2p_paste.visible = false
 		return
 	_p2p_in.visible = true
 	_p2p_action.visible = true
+	_p2p_paste.visible = true
 
 	if hosting:
 		_p2p_out_label.text = "1. Send this code to the other player." if have_blob \
@@ -360,6 +382,42 @@ func _refresh_p2p(hosting: bool, joined: bool, busy: bool) -> void:
 		_p2p_in_label.text = "Paste the host's code here, then Join."
 		_p2p_action.text = "Join"
 		_p2p_action.disabled = false
+
+## Ask the browser for the clipboard and drop it into the box.
+##
+## The web clipboard is asynchronous and only readable off the back of a real
+## user gesture, which a button press is. The result is stashed on `window` by
+## the promise and collected over the next few frames rather than plumbed
+## through a callback object -- a button can afford to take a frame.
+func _paste_clipboard() -> void:
+	_message.text = ""
+	if not OS.has_feature("web"):
+		_p2p_in.text = DisplayServer.clipboard_get()
+		return
+	JavaScriptBridge.eval("""
+		window.__bfps_clip = null;
+		navigator.clipboard.readText()
+			.then(function (t) { window.__bfps_clip = t; })
+			.catch(function () { window.__bfps_clip = ''; });
+	""", true)
+	_paste_wait = 90
+
+func _process(_delta: float) -> void:
+	if _paste_wait <= 0:
+		return
+	_paste_wait -= 1
+	var value = JavaScriptBridge.eval("window.__bfps_clip", true)
+	if value == null:
+		if _paste_wait == 0:
+			_message.text = "The browser would not hand over the clipboard. " \
+					+ "Click in the box and paste with the keyboard instead."
+		return
+	_paste_wait = 0
+	var text := String(value)
+	if text.strip_edges() == "":
+		_message.text = "The clipboard is empty. Copy their code first."
+		return
+	_p2p_in.text = text
 
 func _p2p_pressed() -> void:
 	_message.text = ""
