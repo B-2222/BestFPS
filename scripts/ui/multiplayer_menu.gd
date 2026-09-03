@@ -25,6 +25,21 @@ var _leave_button: Button
 
 var _session: NetSession
 
+## Browser-to-browser controls, used where a download is not an option.
+var _p2p_section: VBoxContainer
+var _p2p_out: TextEdit
+var _p2p_out_label: Label
+var _p2p_copy: Button
+var _p2p_in: TextEdit
+var _p2p_in_label: Label
+var _p2p_action: Button
+var _p2p_host: Button
+var _lan_section: VBoxContainer
+## What we have been handed to give the other player.
+var _our_blob := ""
+## True on the web build, where LAN is impossible and this is the only route.
+var _web := false
+
 func _ready() -> void:
 	layer = 12
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -37,6 +52,7 @@ func _ready() -> void:
 	_session.lobby_changed.connect(_refresh)
 	_session.link_changed.connect(func(_link: NetSession.Link) -> void: _refresh())
 	_session.failed.connect(_on_failed)
+	_session.blob_ready.connect(_on_blob_ready)
 	_refresh()
 
 func is_open() -> bool:
@@ -88,8 +104,12 @@ func _refresh() -> void:
 		_:
 			_status.text = "NOT CONNECTED"
 
-	_code_value.visible = hosting
-	_code_hint.visible = hosting
+	_lan_section.visible = not _web
+	_p2p_section.visible = _web
+	_refresh_p2p(hosting, joined, busy)
+
+	_code_value.visible = hosting and not _web
+	_code_hint.visible = hosting and not _web
 	if hosting:
 		if _session.join_code == "":
 			_code_value.text = "no code"
@@ -99,6 +119,7 @@ func _refresh() -> void:
 			_code_value.text = _session.join_code
 			_code_hint.text = "Read this out. They type it below on the same network."
 
+	_host_button.visible = not _web
 	_host_button.disabled = hosting or joined or busy
 	_join_button.disabled = hosting or joined or busy
 	_leave_button.disabled = _session.link == NetSession.Link.OFFLINE
@@ -154,7 +175,10 @@ func _build() -> void:
 	column.add_child(title)
 
 	var blurb := Label.new()
-	blurb.text = "Same network only. No account, no server — the code is this " \
+	blurb.text = "Same network, no account, no server. In the browser you swap " \
+			+ "codes; on the desktop build the host just reads one out." \
+			if OS.has_feature("web") else \
+			"Same network only. No account, no server — the code is this " \
 			+ "machine's address."
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.add_theme_font_size_override("font_size", 12)
@@ -179,6 +203,10 @@ func _build() -> void:
 	_code_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
 	column.add_child(_code_hint)
 
+	_lan_section = VBoxContainer.new()
+	_lan_section.add_theme_constant_override("separation", 8)
+	column.add_child(_lan_section)
+
 	var entry_row := HBoxContainer.new()
 	entry_row.add_theme_constant_override("separation", 8)
 	_entry = LineEdit.new()
@@ -191,7 +219,7 @@ func _build() -> void:
 	_join_button.text = "Join"
 	_join_button.custom_minimum_size = Vector2(96, 0)
 	entry_row.add_child(_join_button)
-	column.add_child(entry_row)
+	_lan_section.add_child(entry_row)
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
@@ -199,11 +227,17 @@ func _build() -> void:
 	_host_button.text = "Host a game"
 	_host_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	buttons.add_child(_host_button)
+	_p2p_host = Button.new()
+	_p2p_host.text = "Host in this browser"
+	_p2p_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	buttons.add_child(_p2p_host)
 	_leave_button = Button.new()
 	_leave_button.text = "Leave"
 	_leave_button.custom_minimum_size = Vector2(96, 0)
 	buttons.add_child(_leave_button)
 	column.add_child(buttons)
+
+	_build_p2p(column)
 
 	_message = Label.new()
 	_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -228,14 +262,116 @@ func _build() -> void:
 	footer.add_theme_color_override("font_color", Color(1, 1, 1, 0.4))
 	column.add_child(footer)
 
+	_web = OS.has_feature("web")
+	_p2p_host.visible = _web
 	_host_button.pressed.connect(func() -> void:
 		_message.text = ""
 		_session.host())
+	_p2p_host.pressed.connect(func() -> void:
+		_message.text = ""
+		_our_blob = ""
+		_session.host_p2p())
+	_p2p_copy.pressed.connect(func() -> void:
+		DisplayServer.clipboard_set(_our_blob)
+		_message.text = "Copied. Send it to the other player however you like.")
+	_p2p_action.pressed.connect(_p2p_pressed)
 	_join_button.pressed.connect(_do_join)
 	_entry.text_submitted.connect(func(_text: String) -> void: _do_join())
 	_leave_button.pressed.connect(func() -> void:
 		_message.text = ""
 		_session.leave())
+
+## The browser route: three copy-pastes and no server anywhere.
+func _build_p2p(column: VBoxContainer) -> void:
+	_p2p_section = VBoxContainer.new()
+	_p2p_section.add_theme_constant_override("separation", 6)
+	column.add_child(_p2p_section)
+
+	_p2p_out_label = Label.new()
+	_p2p_out_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_p2p_out_label.add_theme_font_size_override("font_size", 12)
+	_p2p_out_label.add_theme_color_override("font_color", Color(0.6, 0.95, 0.7))
+	_p2p_section.add_child(_p2p_out_label)
+
+	_p2p_out = TextEdit.new()
+	_p2p_out.editable = false
+	_p2p_out.custom_minimum_size = Vector2(0, 52)
+	_p2p_out.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_p2p_out.add_theme_font_size_override("font_size", 10)
+	_p2p_section.add_child(_p2p_out)
+
+	_p2p_copy = Button.new()
+	_p2p_copy.text = "Copy my code"
+	_p2p_section.add_child(_p2p_copy)
+
+	_p2p_in_label = Label.new()
+	_p2p_in_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_p2p_in_label.add_theme_font_size_override("font_size", 12)
+	_p2p_in_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	_p2p_section.add_child(_p2p_in_label)
+
+	_p2p_in = TextEdit.new()
+	_p2p_in.custom_minimum_size = Vector2(0, 52)
+	_p2p_in.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_p2p_in.add_theme_font_size_override("font_size", 10)
+	_p2p_section.add_child(_p2p_in)
+
+	_p2p_action = Button.new()
+	_p2p_section.add_child(_p2p_action)
+
+func _on_blob_ready(blob: String) -> void:
+	_our_blob = blob
+	_p2p_out.text = blob
+	_refresh()
+
+## Three states, and the labels say which one you are in. The failure mode this
+## avoids is two people both staring at a box with no idea whose turn it is.
+func _refresh_p2p(hosting: bool, joined: bool, busy: bool) -> void:
+	if not _web:
+		return
+	_p2p_host.disabled = hosting or joined or busy
+	var have_blob := _our_blob != ""
+	_p2p_out.visible = have_blob
+	_p2p_out_label.visible = have_blob
+	_p2p_copy.visible = have_blob
+
+	if joined:
+		_p2p_out_label.text = ""
+		_p2p_in_label.text = "Connected."
+		_p2p_in.visible = false
+		_p2p_action.visible = false
+		return
+	_p2p_in.visible = true
+	_p2p_action.visible = true
+
+	if hosting:
+		_p2p_out_label.text = "1. Send this code to the other player." if have_blob \
+				else "Working out your code…"
+		_p2p_in_label.text = "2. Paste the reply they send back, then Connect."
+		_p2p_action.text = "Connect"
+	elif busy:
+		_p2p_out_label.text = "2. Send this reply back to the host." if have_blob \
+				else "Working out your reply…"
+		_p2p_in_label.text = "Waiting for the host to connect."
+		_p2p_action.text = "Waiting…"
+		_p2p_action.disabled = true
+	else:
+		_p2p_out_label.text = ""
+		_p2p_in_label.text = "Paste the host's code here, then Join."
+		_p2p_action.text = "Join"
+		_p2p_action.disabled = false
+
+func _p2p_pressed() -> void:
+	_message.text = ""
+	var pasted := _p2p_in.text.strip_edges()
+	if pasted == "":
+		_message.text = "Paste their code into the box first."
+		return
+	if _session.link == NetSession.Link.HOSTING:
+		_session.accept_answer(pasted)
+	else:
+		_our_blob = ""
+		_session.join_p2p(pasted)
 
 func _do_join() -> void:
 	_message.text = ""

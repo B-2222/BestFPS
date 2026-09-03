@@ -26,6 +26,8 @@ signal link_changed(link: Link)
 signal lobby_changed()
 ## Something went wrong in a way the player has to see.
 signal failed(reason: String)
+## A browser-to-browser code is ready to hand to the other player.
+signal blob_ready(blob: String)
 
 ## Named Link, not State: `State` is already a global class_name in this
 ## project -- the movement state base class -- and a local enum of that name is
@@ -44,6 +46,10 @@ const MAX_PLAYERS := 8
 const CONNECT_TIMEOUT := 8.0
 
 const HOST_ID := 1
+## The other player in a browser-to-browser game. Two-player only for now: a
+## mesh of three or more needs every pair introduced to every other pair, which
+## is three copy-pastes each and not something anyone would do.
+const GUEST_ID := 2
 
 var link: Link = Link.OFFLINE
 ## The code to read out. Empty unless hosting.
@@ -53,8 +59,14 @@ var roster: Dictionary = {}
 var local_name: String = "Player"
 
 var _connect_timer: float = 0.0
+var _link: WebRtcLink = null
 
 var _signals_ready: bool = false
+
+func _init() -> void:
+	# Same reason as WebRtcLink: connecting, timing out and negotiating all
+	# happen with the lobby open, and the lobby pauses the tree.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
 ## Connect on first use rather than in _ready().
 ##
@@ -133,6 +145,92 @@ func host(player_name: String = "") -> bool:
 static func code_for(address: String, port: int = DEFAULT_PORT) -> String:
 	return JoinCode.encode(address, port)
 
+# --- browser to browser -----------------------------------------------------
+#
+# The same lobby and the same game on a different transport. Everything above
+# this file -- the roster, NetArena, the snapshots, the input replication --
+# goes through MultiplayerAPI and cannot tell the difference, which is the
+# whole reason a second transport was affordable at all.
+
+## Start a browser-hosted game. The offer arrives on [signal blob_ready].
+func host_p2p(player_name: String = "") -> bool:
+	if not _ensure_signals():
+		failed.emit("Networking is not ready yet. Try again in a moment.")
+		return false
+	leave()
+	if not _start_link():
+		return false
+	var mesh := WebRTCMultiplayerPeer.new()
+	if mesh.create_mesh(HOST_ID) != OK:
+		failed.emit("This browser would not start a peer-to-peer session.")
+		return false
+	if mesh.add_peer(_link.connection, GUEST_ID) != OK:
+		failed.emit("This browser would not accept a peer.")
+		return false
+	multiplayer.multiplayer_peer = mesh
+	local_name = player_name if player_name != "" else "Host"
+	roster = {HOST_ID: {"name": local_name, "bot": false}}
+	join_code = ""
+	_set_link(Link.HOSTING)
+	lobby_changed.emit()
+	# Only now, with the peer in the mesh: see WebRtcLink.open().
+	_link.begin_offer()
+	return true
+
+## Join a browser-hosted game from the host's offer. The answer to send back
+## arrives on [signal blob_ready].
+func join_p2p(offer: String, player_name: String = "") -> bool:
+	if not _ensure_signals():
+		failed.emit("Networking is not ready yet. Try again in a moment.")
+		return false
+	leave()
+	if not _start_link():
+		return false
+	var mesh := WebRTCMultiplayerPeer.new()
+	if mesh.create_mesh(GUEST_ID) != OK:
+		failed.emit("This browser would not start a peer-to-peer session.")
+		return false
+	if mesh.add_peer(_link.connection, HOST_ID) != OK:
+		failed.emit("This browser would not accept a peer.")
+		return false
+	multiplayer.multiplayer_peer = mesh
+	local_name = player_name if player_name != "" else "Player"
+	_set_link(Link.JOINING)
+	# Setting the offer is what makes this browser produce an answer, which
+	# comes back through blob_ready a second or so later.
+	if not _link.accept_blob(offer):
+		leave()
+		return false
+	# No timeout on this path. There is nothing to time out against -- the wait
+	# is on a human copying a blob into a chat window, which can take as long
+	# as it takes.
+	_connect_timer = INF
+	return true
+
+## Host only: take the answer the other player sent back.
+func accept_answer(answer: String) -> bool:
+	if _link == null:
+		failed.emit("Host a game first, then paste their reply.")
+		return false
+	return _link.accept_blob(answer)
+
+func _start_link() -> bool:
+	_clear_link()
+	_link = WebRtcLink.new()
+	_link.name = "Link"
+	add_child(_link)
+	_link.blob_ready.connect(func(blob: String) -> void: blob_ready.emit(blob))
+	_link.failed.connect(func(reason: String) -> void: failed.emit(reason))
+	if not _link.open():
+		_clear_link()
+		return false
+	return true
+
+func _clear_link() -> void:
+	if _link != null and is_instance_valid(_link):
+		_link.queue_free()
+	_link = null
+
 func join(code: String, player_name: String = "") -> bool:
 	if not _ensure_signals():
 		failed.emit("Networking is not ready yet. Try again in a moment.")
@@ -161,6 +259,7 @@ func leave() -> void:
 		multiplayer.multiplayer_peer.close()
 	if multiplayer != null:
 		multiplayer.multiplayer_peer = null
+	_clear_link()
 	roster.clear()
 	join_code = ""
 	_set_link(Link.OFFLINE)

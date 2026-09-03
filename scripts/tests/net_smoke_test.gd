@@ -146,6 +146,57 @@ func _build_plan() -> void:
 					"%s is a private address" % address),
 	},
 	{
+		"name": "a browser code survives being copied and pasted",
+		"ticks": 1,
+		"check": func() -> void:
+			# Real-shaped SDP: long, repetitive, full of newlines and colons --
+			# every character class that a naive encoding gets wrong.
+			var sdp := "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n" \
+					+ "s=-\r\nt=0 0\r\na=group:BUNDLE 0\r\n" \
+					+ "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n" \
+					+ "c=IN IP4 0.0.0.0\r\na=ice-ufrag:aB3x\r\n" \
+					+ "a=fingerprint:sha-256 " + "AB:".repeat(31) + "CD\r\n"
+			var candidates := [
+				["0", 0, "candidate:1 1 udp 2113937151 192.168.1.42 54321 typ host"],
+				["0", 0, "candidate:2 1 udp 2113937150 a1b2c3d4.local 54322 typ host"],
+			]
+			var blob := WebRtcLink.encode("offer", sdp, candidates)
+			var back := WebRtcLink.decode(blob)
+			_expect(not back.is_empty(), "decodes at all")
+			if back.is_empty():
+				return
+			_expect(back["type"] == "offer", "keeps the type")
+			_expect(back["sdp"] == sdp, "keeps the SDP byte for byte")
+			_expect(back["candidates"].size() == 2, "keeps every candidate")
+			_expect(str(back["candidates"][1][2]).contains("a1b2c3d4.local"),
+					"including an mDNS one")
+			# It has to be small enough that somebody will actually paste it.
+			_expect(blob.length() < 1400,
+					"the code is %d characters, small enough to paste" % blob.length())
+			_expect(not blob.contains("\n"),
+					"and is one line, so a chat app cannot mangle it"),
+	},
+	{
+		"name": "a damaged browser code is refused, not half-applied",
+		"ticks": 1,
+		"check": func() -> void:
+			var blob := WebRtcLink.encode("answer", "v=0\r\ns=-\r\n", [])
+			for bad in [
+					["", "nothing"],
+					["hello", "random text"],
+					[blob.substr(0, blob.length() - 20), "a truncated paste"],
+					[blob.replace(WebRtcLink.MAGIC, ""), "a code missing its prefix"],
+					[blob.substr(0, 30) + blob.substr(40), "a code with a chunk missing"],
+			]:
+				_expect(WebRtcLink.decode(bad[0]).is_empty(),
+						"%s is rejected" % bad[1])
+			# The one that matters most: a paste cut short by a chat window is
+			# the likeliest failure here, and it must not decode to a
+			# half-formed offer that then fails as a mystery connection error.
+			_expect(WebRtcLink.decode(blob.substr(0, blob.length() / 2)).is_empty(),
+					"half a code is rejected rather than half-applied"),
+	},
+	{
 		"name": "a host opens a port and produces a usable code",
 		"ticks": 30,
 		"setup": func() -> void:
