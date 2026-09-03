@@ -14,6 +14,14 @@ signal hit_confirmed(info: DamageInfo)
 signal killed(info: DamageInfo)
 signal reload_started(seconds: float)
 signal reload_finished()
+## One shot, fully resolved: where it was drawn from, and where each pellet
+## ended up with the surface normal there. Emitted after tracing rather than
+## with the trigger pull, because the endpoints are the part another machine
+## needs and they do not exist until the traces have run.
+##
+## A zero normal means that pellet hit nothing, so there is a tracer to draw
+## and no impact to put on the end of it.
+signal shot_resolved(muzzle: Vector3, impacts: PackedVector3Array, normals: PackedVector3Array)
 
 ## Fallback loadout when the scene does not specify one. A list of paths rather
 ## than a single weapon so the remaining Milestone 2 weapons are a one-line
@@ -46,6 +54,9 @@ var _hz: float = 120.0
 ## the locally controlled character", which is the same question with more
 ## candidates.
 var _shows_damage_numbers: bool = false
+## Endpoints of the shot currently being traced, gathered for replication.
+var _shot_impacts: PackedVector3Array = PackedVector3Array()
+var _shot_normals: PackedVector3Array = PackedVector3Array()
 
 func _ready() -> void:
 	_player = get_node(player_path) as PlayerController
@@ -190,8 +201,11 @@ func _fire(cmd: InputCommand, rt: WeaponRuntime) -> void:
 	# the player's face when they strafe.
 	var muzzle: Vector3 = _player.get_muzzle_position()
 
+	_shot_impacts.clear()
+	_shot_normals.clear()
 	for pellet in res.pellets:
 		_trace_pellet(cmd, rt, space, origin, forward, spread_rad, pellet, muzzle)
+	shot_resolved.emit(muzzle, _shot_impacts.duplicate(), _shot_normals.duplicate())
 
 	# Recoil is applied *after* tracing, deliberately. The shot goes where the
 	# player was aiming when they pulled the trigger; the kick moves the next
@@ -220,12 +234,16 @@ func _trace_pellet(cmd: InputCommand, rt: WeaponRuntime,
 
 	if hit.is_empty():
 		_fx.tracer(muzzle, destination)
+		_shot_impacts.append(destination)
+		_shot_normals.append(Vector3.ZERO)
 		return
 
 	var point: Vector3 = hit["position"]
 	var normal: Vector3 = hit["normal"]
 	var collider: Object = hit["collider"]
 	_fx.tracer(muzzle, point)
+	_shot_impacts.append(point)
+	_shot_normals.append(normal)
 
 	if not (collider is Hitbox):
 		_fx.impact(point, normal, false)
@@ -256,6 +274,32 @@ func _trace_pellet(cmd: InputCommand, rt: WeaponRuntime,
 	hitbox.health.apply_damage(info)
 	if was_alive and not hitbox.health.is_alive:
 		killed.emit(info)
+
+## Draw a shot that happened on somebody else's machine.
+##
+## Effects only -- no trace, no damage, no ammo. The host already resolved all
+## of that; this is the picture of it. Kept as a separate entry point rather
+## than replaying the command through _fire(), because replaying would re-roll
+## spread, re-apply recoil and re-deduct ammo on a weapon this machine does not
+## own, and any of those drifting is a desync that only shows up much later.
+func show_remote_shot(muzzle: Vector3, impacts: PackedVector3Array,
+		normals: PackedVector3Array) -> void:
+	_ensure_fx_ready()
+	for i in impacts.size():
+		_fx.tracer(muzzle, impacts[i])
+		if i >= normals.size():
+			continue
+		var normal := normals[i]
+		# A zero normal is the wire's way of saying the shot hit nothing, so
+		# there is a tracer to draw and no impact to put at the end of it.
+		if normal.length_squared() < 0.01:
+			continue
+		_fx.impact(impacts[i], normal, false)
+		_fx.bullet_hole(impacts[i], normal)
+
+func _ensure_fx_ready() -> void:
+	if _fx == null or not is_instance_valid(_fx):
+		_ensure_fx()
 
 ## Spread actually used for the next shot, after movement and aim modifiers.
 ## The HUD reads this to size the crosshair, so what you see is what fires.

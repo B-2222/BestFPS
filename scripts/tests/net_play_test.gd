@@ -29,7 +29,7 @@ const DEADLINE := 1440
 ## The client walks for this many ticks so the host can see it move.
 const WALK_TICKS := 240
 ## The host stays up at least this long, so the client finishes first.
-const LINGER_TICKS := 600
+const LINGER_TICKS := 900
 
 var _arena: Node
 var _player: PlayerController
@@ -45,6 +45,15 @@ var _done := false
 var _client_start := Vector3.ZERO
 var _client_moved := 0.0
 var _saw_host_ghost := false
+## Shots the client saw drawn for somebody else's character.
+var _remote_shots := 0
+## Damage the host's own character took from the client shooting it.
+var _host_damage := 0.0
+## Peaks, not live readings. The client finishes and disconnects first, so
+## reading the roster at the end reports one player in a session that plainly
+## had two -- the same trap this file already hit once with the link state.
+var _peak_roster := 0
+var _peak_remotes := 0
 var _code := ""
 ## Recorded from the signal rather than read at the end. The host quits as soon
 ## as it has what it needs, which tears the client's link down before the
@@ -74,7 +83,9 @@ func _initialize() -> void:
 	# and would only add noise to what is being measured here.
 	var director := _arena.get_node_or_null(^"BotDirector") as BotDirector
 	if director != null:
-		director.bot_count = 0
+		# Bots left on deliberately on the host: their gunfire is the traffic
+		# the client's "shots are drawn for others" check depends on.
+		director.bot_count = 2 if _is_host else 0
 		director.duel_pits_enabled = false
 
 	_code = ""
@@ -92,8 +103,17 @@ func _initialize() -> void:
 func _connect_now() -> void:
 	if _is_host:
 		_session.host("Host")
+		# Watch what the joiner's bullets do to us. The client traces nothing,
+		# so any damage here crossed the wire as input and was resolved by the
+		# same weapon code a local shot uses.
+		if _player.health != null:
+			_player.health.damaged.connect(func(info: DamageInfo, _left: float) -> void:
+				_host_damage += info.amount)
 	else:
 		_session.join(_code, "Joiner")
+		# Count shots drawn for characters this machine does not simulate.
+		if _net_arena != null:
+			_net_arena.remote_shot_drawn.connect(func() -> void: _remote_shots += 1)
 
 func _physics_process(delta: float) -> bool:
 	if _done:
@@ -123,6 +143,8 @@ func _host_step() -> void:
 
 	# Watch the joining client's character. It has no input source of its own
 	# on this machine except the one fed from the network.
+	_peak_roster = maxi(_peak_roster, _session.roster.size())
+	_peak_remotes = maxi(_peak_remotes, _net_arena.remotes.size())
 	for peer_id in _net_arena.remotes.keys():
 		var character: PlayerController = _net_arena.remotes[peer_id]
 		if not is_instance_valid(character):
@@ -135,7 +157,7 @@ func _host_step() -> void:
 	# Deliberately does not stop the moment it has what it needs. Quitting here
 	# closes the socket, and the client is still running its own checks against
 	# a session that would then read as offline.
-	if _client_moved > 2.0 and _session.roster.size() >= 2 and _tick > LINGER_TICKS:
+	if _client_moved > 2.0 and _host_damage > 0.0 and _tick > LINGER_TICKS:
 		_finish()
 
 func _client_step(_delta: float) -> void:
@@ -145,6 +167,19 @@ func _client_step(_delta: float) -> void:
 	_player.cmd.clear()
 	if _tick > 120 and _tick < 120 + WALK_TICKS:
 		_player.cmd.move_axis = Vector2(0.0, 1.0)
+	elif _tick >= 120 + WALK_TICKS:
+		# Stand still, look at where the host parked, and hold the trigger.
+		_player.velocity = Vector3.ZERO
+		_player.global_position = HOST_MARK + Vector3(0.0, 0.0, 9.0)
+		var to := (HOST_MARK + Vector3.UP * 1.2) - _player.aim_point.global_position
+		_player.yaw = atan2(-to.x, -to.z)
+		_player.pitch = atan2(to.y, Vector2(to.x, to.z).length())
+		_player.recoil_offset = Vector2.ZERO
+		_player.apply_view()
+		_player.cmd.yaw = _player.yaw
+		_player.cmd.pitch = _player.pitch
+		_player.cmd.fire_held = true
+		_player.cmd.fire_pressed = true
 
 	for id in _net_arena.ghosts.keys():
 		if id != NetSession.HOST_ID:
@@ -155,26 +190,35 @@ func _client_step(_delta: float) -> void:
 		_saw_host_ghost = true
 		_ghost_error = minf(_ghost_error, ghost.global_position.distance_to(HOST_MARK))
 
-	if _saw_host_ghost and _ghost_error < TOLERANCE and _tick > 120 + WALK_TICKS:
+	if _saw_host_ghost and _ghost_error < TOLERANCE and _remote_shots > 0 \
+			and _tick > 120 + WALK_TICKS + 300:
 		_finish()
 
 func _finish() -> bool:
 	_done = true
 	if _is_host:
-		_expect(_session.roster.size() >= 2,
-				"a client joined (roster %d)" % _session.roster.size())
-		_expect(_net_arena.remotes.size() >= 1,
-				"and got a character on this machine (%d)" % _net_arena.remotes.size())
+		_expect(_peak_roster >= 2, "a client joined (roster peaked at %d)" % _peak_roster)
+		_expect(_peak_remotes >= 1,
+				"and got a character on this machine (%d)" % _peak_remotes)
 		# The one that matters: this character has no local input source, so it
 		# can only have moved because commands arrived over the wire and went
 		# through the same movement code everything else uses.
 		_expect(_client_moved > 2.0,
 				"the client's character moved %.1f m from its input" % _client_moved)
+		# The point of the whole exercise: a bullet fired on another machine
+		# hurt this one, through the same weapon code a local shot uses.
+		_expect(_host_damage > 0.0,
+				"the client shot the host for %.0f damage" % _host_damage)
 	else:
 		_expect(_was_connected, "connected to the host")
 		_expect(_saw_host_ghost, "a body appeared for the host")
 		_expect(_ghost_error < TOLERANCE,
 				"and it is where the host says it is (%.2f m off)" % _ghost_error)
+		# Bots on the host fire at each other and at the joiner, and those
+		# shots have to be drawn here or the world looks silent.
+		_expect(_remote_shots > 0,
+				"saw %d shot(s) drawn for characters it does not simulate"
+				% _remote_shots)
 
 	print("\n=== %d checks, %d failed ===" % [_checks, _failures.size()])
 	for failure in _failures:

@@ -280,6 +280,13 @@ func display_name(peer_id: int) -> String:
 
 func _on_peer_connected(peer_id: int) -> void:
 	if not is_host():
+		# A browser session is a WebRTC *mesh*, and a mesh has no server, so
+		# connected_to_server never fires on the joiner -- it only ever learns
+		# it is in by seeing the host appear. Without this the joiner sits on
+		# CONNECTING forever, never sends its name, and the lobby shows two
+		# players who cannot see each other.
+		if peer_id == HOST_ID and link == Link.JOINING:
+			_on_connected()
 		return
 	# The host owns the roster. A joiner is added here and the whole list is
 	# pushed back out, rather than each peer maintaining its own copy from

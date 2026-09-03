@@ -39,6 +39,11 @@ const CORRECTION_SECONDS := 0.12
 ## Usually means it was paused, or missed a teleport such as a respawn.
 const SNAP_DISTANCE := 3.0
 
+## A shot was drawn for a character this machine does not simulate. Exists so a
+## test can prove gunfire actually crosses the wire rather than inferring it
+## from something that looks like it would have.
+signal remote_shot_drawn()
+
 const REMOTE_SCENE := "res://scenes/player/player.tscn"
 
 @export var local_player_path: NodePath = ^"../Player"
@@ -73,8 +78,19 @@ var _tick: int = 0
 var _corrections: Dictionary = {}
 ## id -> seconds since a snapshot last mentioned it.
 var _ghost_age: Dictionary = {}
+## Instance ids of characters whose shots are already being relayed, so bots
+## that appear and respawn over the life of a match get hooked exactly once.
+var _watched: Dictionary = {}
+## Seconds since a snapshot arrived, for the lobby's status line.
+var _since_snapshot: float = 99.0
 
 func _ready() -> void:
+	# Runs while the tree is paused. The lobby pauses the game, and the entire
+	# connection happens with the lobby open -- so a pausable arena sends no
+	# snapshots and no commands during exactly the window where both players
+	# are waiting to see each other appear.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group(&"net_arena")
 	_local = get_node_or_null(local_player_path) as PlayerController
 	_director = get_node_or_null(director_path) as BotDirector
 	_session = get_node_or_null(^"/root/Net") as NetSession
@@ -85,6 +101,8 @@ func _ready() -> void:
 		# unaffected.
 		set_physics_process(false)
 		return
+	if _local != null:
+		_watch_shots(_local, multiplayer.get_unique_id())
 	_session.lobby_changed.connect(_sync_roster)
 	_session.link_changed.connect(_on_link_changed)
 	_sync_roster()
@@ -140,7 +158,77 @@ func _add_remote(peer_id: int) -> void:
 		character.add_child(source)
 		character.set_input_source(source)
 		_inputs[peer_id] = source
+	_watch_shots(character, peer_id)
 	remotes[peer_id] = character
+
+## Relay this character's shots to everyone else.
+##
+## Only the authority does this, and only for characters it actually simulates.
+## A client drawing its own local prediction *and* the host's replay of the
+## same shot would double every tracer, so the host never sends a shot back to
+## the peer that fired it.
+func _watch_shots(character: PlayerController, id: int) -> void:
+	if not _session.is_authority() or character.weapons == null:
+		return
+	if _watched.has(character.get_instance_id()):
+		return
+	_watched[character.get_instance_id()] = true
+	character.weapons.shot_resolved.connect(
+			func(muzzle: Vector3, impacts: PackedVector3Array,
+					normals: PackedVector3Array) -> void:
+				_broadcast_shot(id, muzzle, impacts, normals))
+	# Hits are reported back to whoever pulled the trigger. A client traces
+	# nothing -- the host owns that -- so without this its crosshair never
+	# confirms a hit and shooting someone feels like shooting a wall.
+	if id > 0 and id != multiplayer.get_unique_id():
+		character.weapons.hit_confirmed.connect(
+			func(info: DamageInfo) -> void:
+				_confirm_hit.rpc_id(id, info.amount, info.is_headshot, false))
+		character.weapons.killed.connect(
+			func(info: DamageInfo) -> void:
+				_confirm_hit.rpc_id(id, info.amount, info.is_headshot, true))
+
+func _broadcast_shot(id: int, muzzle: Vector3, impacts: PackedVector3Array,
+		normals: PackedVector3Array) -> void:
+	if not _session.is_authority() or _session.link == NetSession.Link.OFFLINE:
+		return
+	for peer_id in _session.roster.keys():
+		if peer_id == multiplayer.get_unique_id() or peer_id == id:
+			continue
+		_receive_shot.rpc_id(peer_id, id, muzzle, impacts, normals)
+
+## Unreliable: a shot is a 40 ms visual event, and one that arrives late is
+## worse than one that never arrives -- a tracer drawn after the target has
+## already fallen over reads as a glitch rather than as a shot.
+@rpc("authority", "call_remote", "unreliable")
+func _receive_shot(id: int, muzzle: Vector3, impacts: PackedVector3Array,
+		normals: PackedVector3Array) -> void:
+	if _session.is_authority():
+		return
+	var character := _character_for(id)
+	if character == null:
+		character = _ensure_ghost(id)
+	if character == null or character.weapons == null:
+		return
+	character.weapons.show_remote_shot(muzzle, impacts, normals)
+	remote_shot_drawn.emit()
+
+## Reliable: a hit marker is feedback on something the player did, and a
+## missing one reads as the shot not having counted.
+@rpc("authority", "call_remote", "reliable")
+func _confirm_hit(amount: float, headshot: bool, fatal: bool) -> void:
+	if _session.is_authority() or _local == null or _local.weapons == null:
+		return
+	var info := DamageInfo.new()
+	info.amount = amount
+	info.is_headshot = headshot
+	info.source = _local
+	# Re-emitted through the local weapon controller so the HUD, the audio and
+	# anything else listening receive it exactly as they would in a solo game.
+	# Nothing downstream has to learn that hits can arrive from elsewhere.
+	_local.weapons.hit_confirmed.emit(info)
+	if fatal:
+		_local.weapons.killed.emit(info)
 
 ## Remove the parts of the player scene that only make sense for the person
 ## sitting at this machine. A second Camera3D with `current` set would fight the
@@ -202,6 +290,7 @@ func _client_tick(_delta: float) -> void:
 	_send_command.rpc_id(NetSession.HOST_ID, _local.cmd.to_wire())
 	_apply_corrections(_delta)
 	_expire_ghosts(_delta)
+	_since_snapshot += _delta
 
 func _build_snapshot() -> Array:
 	var out: Array = []
@@ -215,10 +304,12 @@ func _build_snapshot() -> Array:
 		for i in _director.bots.size():
 			var bot: PlayerController = _director.bots[i]
 			if is_instance_valid(bot):
+				_watch_shots(bot, ROAM_BOT_BASE - i)
 				out.append(_capture(ROAM_BOT_BASE - i, bot))
 		for i in _director.duel_bots.size():
 			var duel: PlayerController = _director.duel_bots[i]
 			if is_instance_valid(duel):
+				_watch_shots(duel, DUEL_BOT_BASE - i)
 				out.append(_capture(DUEL_BOT_BASE - i, duel))
 	return out
 
@@ -244,6 +335,7 @@ func _send_command(wire: Array) -> void:
 func _receive_snapshot(snapshot: Array) -> void:
 	if _session.is_authority():
 		return
+	_since_snapshot = 0.0
 	for entry in snapshot:
 		if not entry is Array or (entry as Array).size() != 10:
 			continue
@@ -327,6 +419,22 @@ func _expire_ghosts(delta: float) -> void:
 			character.queue_free()
 		ghosts.erase(id)
 		_ghost_age.erase(id)
+
+## One line the lobby can show, so "I can see 2 in the lobby but nobody in the
+## world" is answerable without a debugger. Deliberately says how many *bodies*
+## exist, which is the thing the player is actually asking about.
+func status_line() -> String:
+	if _session == null or _session.link == NetSession.Link.OFFLINE:
+		return ""
+	var me: int = multiplayer.get_unique_id() if multiplayer != null else 0
+	if _session.is_authority():
+		return "you are the host (#%d) · %d other %s in the world" % [me,
+				remotes.size(), "body" if remotes.size() == 1 else "bodies"]
+	var seen := ghosts.size()
+	var ago := "no updates yet" if _since_snapshot > 9.0 \
+			else "last update %.1fs ago" % _since_snapshot
+	return "you are player #%d · %d %s in the world · %s" % [me, seen,
+			"body" if seen == 1 else "bodies", ago]
 
 func _character_for(id: int) -> PlayerController:
 	if id == multiplayer.get_unique_id():

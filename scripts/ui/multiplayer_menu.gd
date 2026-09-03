@@ -42,6 +42,7 @@ var _lan_section: VBoxContainer
 var _our_blob := ""
 ## True on the web build, where LAN is impossible and this is the only route.
 var _web := false
+var _diagnostic: Label
 
 func _ready() -> void:
 	layer = 12
@@ -65,7 +66,10 @@ func open() -> void:
 	if _session == null:
 		return
 	_root.visible = true
-	get_tree().paused = true
+	# Pausing is a single-player convenience. In a session with someone else in
+	# it, one player opening a menu must not stop the world -- on the host it
+	# would freeze the game for everybody.
+	get_tree().paused = _session.link == NetSession.Link.OFFLINE
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	_message.text = ""
 	_refresh()
@@ -74,6 +78,10 @@ func open() -> void:
 func close() -> void:
 	_root.visible = false
 	get_tree().paused = false
+	if _session != null and _session.link != NetSession.Link.OFFLINE:
+		# Back to the game, so take the mouse back too. Otherwise the player
+		# closes the lobby into a session they cannot look around in.
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _input(event: InputEvent) -> void:
 	if not is_open():
@@ -93,6 +101,11 @@ func _on_failed(reason: String) -> void:
 func _refresh() -> void:
 	if _session == null:
 		return
+	if _session.link != NetSession.Link.OFFLINE and get_tree().paused:
+		# Connecting while the menu is open is the normal case, not the odd
+		# one, so the pause has to lift the moment there is a session rather
+		# than waiting for somebody to close the panel.
+		get_tree().paused = false
 	var hosting := _session.link == NetSession.Link.HOSTING
 	var joined := _session.link == NetSession.Link.CONNECTED
 	var busy := _session.link == NetSession.Link.JOINING
@@ -106,6 +119,10 @@ func _refresh() -> void:
 			_status.text = "CONNECTED  ·  %d in the lobby" % _session.roster.size()
 		_:
 			_status.text = "NOT CONNECTED"
+
+	var arena := get_tree().get_first_node_in_group(&"net_arena") as NetArena
+	_diagnostic.text = arena.status_line() if arena != null else ""
+	_diagnostic.visible = _diagnostic.text != ""
 
 	_lan_section.visible = not _web
 	_p2p_section.visible = _web
@@ -191,6 +208,12 @@ func _build() -> void:
 	_status = Label.new()
 	_status.add_theme_font_size_override("font_size", 15)
 	column.add_child(_status)
+
+	_diagnostic = Label.new()
+	_diagnostic.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_diagnostic.add_theme_font_size_override("font_size", 12)
+	_diagnostic.add_theme_color_override("font_color", Color(0.65, 0.85, 1.0, 0.9))
+	column.add_child(_diagnostic)
 	column.add_child(HSeparator.new())
 
 	_code_value = Label.new()
@@ -403,6 +426,11 @@ func _paste_clipboard() -> void:
 	_paste_wait = 90
 
 func _process(_delta: float) -> void:
+	if is_open():
+		var arena := get_tree().get_first_node_in_group(&"net_arena") as NetArena
+		if arena != null:
+			_diagnostic.text = arena.status_line()
+			_diagnostic.visible = _diagnostic.text != ""
 	if _paste_wait <= 0:
 		return
 	_paste_wait -= 1
